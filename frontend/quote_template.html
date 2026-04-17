@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR','Malgun Gothic',sans-serif;font-size:9pt;color:#1a1a2e;background:#fff}
+.page{width:210mm;min-height:297mm;padding:0;margin:0 auto;position:relative}
+
+.header{background:#1A6B3C;color:#fff;padding:12mm 15mm 10mm;display:flex;justify-content:space-between;align-items:flex-start}
+.co-name{font-size:20pt;font-weight:700;margin-bottom:3mm}
+.co-sub{font-size:9pt;opacity:0.85;margin-bottom:2mm}
+.co-meta{font-size:7.5pt;opacity:0.75}
+.doc-title{text-align:right}
+.doc-title h1{font-size:15pt;font-weight:700;margin-bottom:3mm;letter-spacing:2px}
+.doc-meta{font-size:8pt;opacity:0.9;line-height:1.9}
+
+.body{padding:8mm 15mm}
+
+.parties{display:flex;gap:5mm;margin-bottom:6mm}
+.party-box{flex:1;border-radius:4px;overflow:hidden}
+.party-head{background:#1A6B3C;color:#fff;padding:3mm 4mm;font-size:8pt;font-weight:700}
+.party-body{background:#F0FAF4;padding:4mm;min-height:28mm}
+.party-name{font-size:11pt;font-weight:700;color:#1a1a2e;margin-bottom:2mm}
+.party-info{font-size:7.5pt;color:#555;line-height:1.8}
+
+.stamp-wrap{position:relative;width:50mm;display:flex;align-items:center;justify-content:center}
+.stamp{width:26mm;height:26mm;border:2px solid #1A6B3C;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#1A6B3C}
+.stamp-inner{width:23mm;height:23mm;border:1px solid #1A6B3C;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.stamp-co{font-size:6pt;font-weight:700;text-align:center;line-height:1.3}
+.stamp-in{font-size:10pt;font-weight:700}
+
+.total-banner{background:#1A6B3C;color:#fff;padding:4mm 6mm;border-radius:3px;display:flex;justify-content:space-between;align-items:center;margin-bottom:5mm}
+.total-label{font-size:10pt;font-weight:700;letter-spacing:1px}
+.total-amount{font-size:13pt;font-weight:700}
+
+table{width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:5mm}
+thead tr{background:#1A6B3C;color:#fff}
+thead th{padding:3mm 3mm;text-align:center;font-weight:700;font-size:7.5pt}
+tbody tr:nth-child(even){background:#F7FAF8}
+tbody tr:nth-child(odd){background:#fff}
+tbody td{padding:2.5mm 3mm;border-bottom:0.3pt solid #ddd;vertical-align:middle}
+.td-no{text-align:center;width:8mm}
+.td-name{width:65mm}
+.td-qty{text-align:right;width:14mm}
+.td-price{text-align:right;width:22mm}
+.td-total{text-align:right;width:24mm}
+.td-note{text-align:center;width:18mm;font-size:7pt;color:#888}
+.td-empty td{color:transparent;border-bottom:0.3pt solid #eee}
+
+.summary-section{background:#F0FAF4;border-radius:3px;overflow:hidden;margin-bottom:5mm}
+.sum-row{display:flex;justify-content:space-between;padding:2.5mm 6mm;border-bottom:0.3pt solid #ddd;font-size:8.5pt}
+.sum-row.total-row{background:#1A6B3C;color:#fff;font-weight:700;font-size:10pt;padding:3.5mm 6mm}
+.sum-val{font-weight:500}
+
+.notes-box{background:#F0FAF4;border-left:3pt solid #1A6B3C;padding:4mm 5mm;border-radius:0 3px 3px 0;margin-bottom:6mm}
+.notes-title{font-size:8pt;font-weight:700;color:#1A6B3C;margin-bottom:2mm}
+.notes-text{font-size:8pt;color:#444;line-height:1.9}
+
+.footer{position:fixed;bottom:0;left:0;right:0;background:#1A6B3C;color:#fff;padding:3mm 15mm;text-align:center;font-size:7pt;line-height:1.9}
+.footer-sub{opacity:0.75;font-size:6.5pt}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="co-name">{{company_name}}</div>
+      <div class="co-sub">견적서 · QUOTATION</div>
+      <div class="co-meta">사업자등록번호: {{biz_no}} &nbsp;|&nbsp; 대표: {{rep_name}} &nbsp;|&nbsp; {{company_addr}}</div>
+    </div>
+    <div class="doc-title">
+      <h1>견 적 서</h1>
+      <div class="doc-meta">
+        견적번호: {{quote_no}}<br>
+        발 행 일: {{issue_date}}<br>
+        유효기간: {{valid_until}}<br>
+        담 &nbsp;&nbsp;당: {{rep_name}}
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="parties">
+      <div class="party-box">
+        <div class="party-head">수 신 (TO)</div>
+        <div class="party-body">
+          <div class="party-name">{{client_name}} 귀중</div>
+          <div class="party-info">
+            주소: {{client_addr}}<br>
+            담당: {{client_contact}}&nbsp;&nbsp;&nbsp;{{client_phone}}
+          </div>
+        </div>
+      </div>
+      <div class="party-box">
+        <div class="party-head">공 급 자 (FROM)</div>
+        <div class="party-body">
+          <div class="party-name">{{company_name}}</div>
+          <div class="party-info">
+            주소: {{company_addr}}<br>
+            Tel: {{company_phone}}&nbsp;&nbsp;&nbsp;{{company_email}}
+          </div>
+        </div>
+      </div>
+      <div class="stamp-wrap">
+        <div class="stamp">
+          <div class="stamp-inner">
+            <div class="stamp-co">{{company_name}}</div>
+            <div class="stamp-in">직인</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="total-banner">
+      <span class="total-label">합 계 금 액 (부가세 포함)</span>
+      <span class="total-amount">₩ {{grand_total}} 원</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="td-no">No.</th>
+          <th class="td-name">품목명 / 규격</th>
+          <th class="td-qty">수량</th>
+          <th class="td-price">단가 (원)</th>
+          <th class="td-total">금액 (원)</th>
+          <th class="td-note">비고</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{item_rows}}
+        {{empty_rows}}
+      </tbody>
+    </table>
+
+    <div class="summary-section">
+      <div class="sum-row"><span>공급가액 합계</span><span class="sum-val">{{supply_total}} 원</span></div>
+      <div class="sum-row"><span>부가세 (10%)</span><span class="sum-val">{{vat}} 원</span></div>
+      {{shipping_row}}
+      <div class="sum-row total-row"><span>최종 합계 (VAT 포함)</span><span>{{grand_total}} 원</span></div>
+    </div>
+
+    <div class="notes-box">
+      <div class="notes-title">특이사항 / 비고</div>
+      <div class="notes-text">{{notes}}</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    {{company_name}} &nbsp;|&nbsp; 사업자: {{biz_no}} &nbsp;|&nbsp; 대표: {{rep_name}} &nbsp;|&nbsp; {{company_addr}} &nbsp;|&nbsp; Tel: {{company_phone}} &nbsp;|&nbsp; {{company_email}}
+    <div class="footer-sub">본 견적서는 유효기간 내에만 효력이 있으며, 계약 성립 시 발주서 교환을 원칙으로 합니다.</div>
+  </div>
+</div>
+</body>
+</html>

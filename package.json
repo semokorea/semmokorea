@@ -1,0 +1,27 @@
+{
+  "name": "semockorea-admin",
+  "version": "1.0.0",
+  "description": "세모코리아 통합 운영 어드민 — 쇼핑몰 멀티채널 + OEM 사업 관리",
+  "main": "backend/api/server.js",
+  "scripts": {
+    "dev":   "nodemon backend/api/server.js",
+    "start": "node backend/api/server.js",
+    "build": "echo 'Static frontend — no build needed'"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "bcrypt":                "^5.1.1",
+    "cors":                  "^2.8.5",
+    "dotenv":                "^16.4.1",
+    "express":               "^4.18.2",
+    "exceljs":               "^4.4.0",
+    "jsonwebtoken":          "^9.0.2",
+    "node-cron":             "^3.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

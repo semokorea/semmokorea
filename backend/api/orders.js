@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
   let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' });
   if (channel) query = query.eq('channel_id', channel);
   if (status)  query = query.eq('status', status);
-  query = query.range((page - 1) * limit, page * limit - 1).order('ordered_at', { ascending: false });
+  query = query.range((page - 1) * limit, page * limit - 1).order('order_dt', { ascending: false });
   const { data, error, count } = await query;
   if (error) return res.status(500).json({ error: error.message });
   res.json({ data, total: count, page: Number(page), limit: Number(limit) });

@@ -28,7 +28,7 @@ router.patch('/:option_id', async (req, res) => {
     await supabase.from('stock_logs').insert({
       option_id: req.params.option_id,
       change_qty: stock_qty,
-      note
+      memo: note
     });
   }
   res.json(data);

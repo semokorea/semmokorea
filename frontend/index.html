@@ -1157,7 +1157,8 @@ function restoreSession() {
   document.getElementById('admin-screen').style.display = 'block';
   startSync(); mInitItems(); loadAll();
 }
-restoreSession();
+// 저장된 로그인 복원은 스크립트 전체(DATA 등 선언)가 실행된 뒤에 해야 한다
+document.addEventListener('DOMContentLoaded', restoreSession);
 
 // ── 화면 새로고침 타이머 (마지막으로 데이터를 불러온 뒤 경과 시간) ──
 let sec = 0;

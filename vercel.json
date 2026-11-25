@@ -2,6 +2,11 @@
   "framework": null,
   "buildCommand": "",
   "outputDirectory": "frontend",
+  "functions": {
+    "api/sync/index.js": { "maxDuration": 60 },
+    "api/cron/sync.js": { "maxDuration": 60 },
+    "api/shipments/bulk.js": { "maxDuration": 60 }
+  },
   "crons": [
     { "path": "/api/cron/sync", "schedule": "0 21 * * *" }
   ]

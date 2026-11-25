@@ -6,17 +6,22 @@ const coupang = require('./coupang');
 const ably    = require('./ably');
 const zigzag  = require('./zigzag');
 
-// 전체 동기화 실행
-async function runAllSync() {
-  const start = Date.now();
-  console.log(`[SYNC] 시작 ${new Date().toLocaleString('ko-KR')}`);
+const ALL = { naver, coupang, ably, zigzag };
 
-  const results = await Promise.allSettled([
-    naver.syncOrders().then(r  => ({ channel: 'naver',   ...r })),
-    coupang.syncOrders().then(r => ({ channel: 'coupang', ...r })),
-    ably.syncOrders().then(r   => ({ channel: 'ably',    ...r })),
-    zigzag.syncOrders().then(r => ({ channel: 'zigzag',  ...r })),
-  ]);
+// 실제로 연동이 끝난 채널만 수집한다. 환경변수 SYNC_CHANNELS="naver,coupang" 처럼 지정 (기본: naver)
+function enabledChannels() {
+  return (process.env.SYNC_CHANNELS || 'naver')
+    .split(',').map(s => s.trim()).filter(c => ALL[c]);
+}
+
+// 전체 동기화 실행
+async function runAllSync(channels = enabledChannels()) {
+  const start = Date.now();
+  console.log(`[SYNC] 시작 ${new Date().toLocaleString('ko-KR')} (${channels.join(',')})`);
+
+  const results = await Promise.allSettled(
+    channels.map(c => ALL[c].syncOrders().then(r => ({ channel: c, ...r })))
+  );
 
   let totalSynced = 0, totalErrors = 0;
   for (const r of results) {
@@ -45,4 +50,4 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('[SCHEDULER] 로컬 스케줄러 시작 (15분 간격)');
 }
 
-module.exports = { runAllSync };
+module.exports = { runAllSync, enabledChannels };

@@ -46,6 +46,17 @@
 6. 에이블리 57컬럼 송장 엑셀 API
 7. 기존 `backend/api/`(Express)와 `api/`(서버리스) 중복 정리 — Vercel은 `api/`만 배포함. 하나로 통일할 것
 
+### 쇼핑몰 API 연동 구조 (2026-11-25)
+- 네이버·쿠팡은 **API 호출 IP 등록 필수** → Vercel(유동 IP) 대신 **고정 IP 중계 서버**를 거쳐 호출
+  - 네이버 클라우드 `semo-proxy` (Micro, Ubuntu 24.04, 2027-11까지 무료) / **공인 IP 101.79.26.42** (월 4,032원)
+  - Squid 포워드 프록시 **포트 8080** (3128은 사무실 네트워크에서 막혀 있음), Basic 인증 + 허용 도메인(api.commerce.naver.com, api-gateway.coupang.com)만 통과. 설치: `infra/proxy/setup-squid.sh`
+  - ACG: 22 = 사무실 IP(58.127.206.131)만, 8080 = 전체. SSH는 키 로그인(`~/.ssh/semo_proxy_ed25519`, 이 PC)
+  - Vercel 환경변수 `PROXY_URL`(http://semo:비번@101.79.26.42:8080) → `utils/proxy.js`가 CONNECT 터널로 사용
+  - 새 쇼핑몰 도메인을 쓰려면 setup-squid.sh의 ALLOWED_DOMAINS에 추가 후 재실행
+- 네이버 커머스API 공식 문서는 `https://apicenter.commerce.naver.com/llms/llms.txt` (md 문서, curl로 받기 가능)
+- 수집 채널은 환경변수 `SYNC_CHANNELS`(기본 `naver`)로 켠다. 연동 안 된 채널은 넣지 말 것
+- 네이버: 커머스API센터 애플리케이션의 API호출 IP에 101.79.26.42 등록됨
+
 ### 알려진 함정
 - `vercel.json`은 **zero-config**(`outputDirectory: frontend`, `api/`는 자동 함수). 예전 `builds/routes` 방식은 `/api/*`가 404였음
 - 다른 도메인에서 API를 호출하면 CORS로 막힘 (같은 도메인 `/api/...`로 호출할 것)

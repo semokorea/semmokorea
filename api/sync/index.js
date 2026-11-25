@@ -4,6 +4,7 @@ const naver   = require('../../sync/naver');
 const coupang = require('../../sync/coupang');
 const ably    = require('../../sync/ably');
 const zigzag  = require('../../sync/zigzag');
+const { verifyRequest } = require('../../utils/auth');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -11,8 +12,7 @@ module.exports = async (req, res) => {
   }
 
   // JWT 인증 확인
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: '인증 필요' });
+  if (!verifyRequest(req)) return res.status(401).json({ error: '인증 필요' });
 
   const { channels = ['naver', 'coupang', 'ably', 'zigzag'] } = req.body || {};
 

@@ -5,6 +5,7 @@ const naver   = require('../../sync/naver');
 const coupang = require('../../sync/coupang');
 const ably    = require('../../sync/ably');
 const zigzag  = require('../../sync/zigzag');
+const { verifyRequest } = require('../../utils/auth');
 
 const platformMap = { naver, coupang, ably, zigzag };
 
@@ -13,8 +14,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: '인증 필요' });
+  if (!verifyRequest(req)) return res.status(401).json({ error: '인증 필요' });
 
   /*
     body: {

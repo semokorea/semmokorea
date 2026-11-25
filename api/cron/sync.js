@@ -1,6 +1,7 @@
 // api/cron/sync.js
-// Vercel Cron Job 엔드포인트 — 15분마다 자동 호출
-// vercel.json 에 cron 설정 필요
+// 자동 수집 엔드포인트 (Authorization: Bearer CRON_SECRET 필요)
+// - Vercel Cron(Hobby 플랜은 하루 1회까지) → vercel.json 참고
+// - 15분 간격은 외부 스케줄러(cron-job.org 등)가 이 URL을 호출
 
 const { runAllSync } = require('../../sync/scheduler');
 

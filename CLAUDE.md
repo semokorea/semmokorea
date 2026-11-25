@@ -10,7 +10,7 @@
 
 ---
 
-## 현재 개발 상태 (2026-11-25 기준)
+## 현재 개발 상태 (2026-11-25 저녁 기준)
 
 ### 배포 정보
 - 운영 주소: **https://semokorea.vercel.app** (`semo` — **m이 하나**. `semmokorea`는 틀린 주소 → 404 DEPLOYMENT_NOT_FOUND)
@@ -20,31 +20,43 @@
 - 환경변수는 전부 Vercel에만 둔다 (코드/문서/채팅에 키·시크릿 금지). 필요한 이름:
   `SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, JWT_SECRET, CRON_SECRET,
   NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, COUPANG_ACCESS_KEY, COUPANG_SECRET_KEY, COUPANG_VENDOR_ID,
-  ABLY_API_KEY, ZIGZAG_API_KEY`
-  (주의: 과거 `SUPABASE_ANON_KE` 오타 이름이 있었음 → `SUPABASE_ANON_KEY`로 고칠 것)
+  ABLY_API_KEY, ZIGZAG_API_KEY, PROXY_URL` (+ 선택 `SYNC_CHANNELS`, 기본 `naver`)
+  (`SUPABASE_ANON_KE` 오타 변수는 2026-11-25 삭제함. 코드는 ANON 키를 쓰지 않음)
+  환경변수를 바꾸면 **Redeploy**해야 적용됨
 
-### ✅ 완료
-| 항목 | 위치 | 비고 |
+### ✅ 운영 중 (2026-11-25 저녁, main `16ed787` 기준 — 모두 운영 사이트 반영됨)
+| 영역 | 기능 | 위치 |
 |------|------|------|
-| 반응형 어드민 UI | `frontend/index.html` | 로그인 + **조회 화면 실데이터 연동**(주문·배송처리·재고·매출·OEM주문·해운진행·견적서·거래처). 등록/수정 모달(OEM주문·거래처·견적서 저장·해운 업데이트)과 송장 엑셀은 아직 동작 안 함 |
-| 화면 조회 API | `api/data/index.js` | `GET /api/data?type=shop\|stock\|sales\|oem` (JWT 필요). Hobby 함수 개수 제한 때문에 하나로 묶음. 브라우저 목업 테스트만 함, 실DB 미검증 |
-| DB 스키마 + 시드 | `db/schema.sql`, `db/add_sync_logs.sql`, `db/seed_admin_users.sql` | Supabase에 테이블 16개 생성됨, admin/manager 계정(bcrypt) 입력됨 |
-| 로그인 API | `api/auth/login.js`, `utils/auth.js` | bcrypt + JWT 7일. 운영에서 200 확인 |
-| 비밀번호 변경 | `api/auth/password.js`, 상단바/더보기 메뉴 | 본인만, 현재 비번 확인, 8자 이상+영문+숫자. 변경 후 재로그인. 기존 JWT는 만료(7일)까지 유효 |
-| 주문/수집/배송 API (서버리스) | `api/orders`, `api/sync`, `api/shipments/bulk`, `api/cron/sync` | 문법·모듈 로드만 검증. **실제 플랫폼 호출은 미검증** |
-| 플랫폼 연동 모듈 | `sync/{naver,coupang,ably,zigzag,scheduler}.js`, `utils/supabase.js` | `syncOrders()`, `registerShipment()` |
-| 견적서 HTML + 직인 | `frontend/quote_template.html`, `assets/stamp_semockorea.png` | 서버 PDF API는 아직 없음 |
+| 계정 | 로그인(bcrypt+JWT 7일), 비밀번호 변경 | `api/auth/login.js`, `api/auth/password.js` |
+| 조회 | 화면 데이터 전부 실DB (`GET /api/data?type=shop\|stock\|sales\|oem`, shop은 `&days=`) | `api/data/index.js` |
+| 쇼핑몰 | **네이버 주문 수집 운영 중**(버튼 + 기간 1~30일), 스토어별 집계표(주문·취소·반품·발송대기·순매출, 숫자 클릭 → 목록), 배송처리(→ 네이버 발송처리 API), 상품 등록·입고/출고/실사조정 | `sync/naver.js`, `api/sync`, `api/shipments/bulk.js`, `api/stock` |
+| OEM | 거래처 등록·수정 / 주문 등록·상태 드롭다운(견적서발행→주문접수→샘플→메인→출고중→납품완료) / 해운진행 10단계 타임라인(자동 연동) / 주문번호 클릭 → 품목·단가 상세 | `api/oem/clients.js`, `api/oem/orders.js` |
+| 견적서 | 작성·수정·삭제·PDF(직인, 브라우저 인쇄) / 저장 시 주문관리에 '견적서발행' 자동 생성 / **확정 ↔ 주문접수 양방향 연동** | `api/oem/quotes.js`, `frontend/quote_template.html` |
+| DB | 테이블 17개(+`sync_logs`). 네이버 주문 29건 수집됨(11/17~11/24) | Supabase |
+- 서버리스 함수 개수: **Hobby 12개 제한 중 11개 사용** → 새 기능은 기존 파일에 메서드/action으로 붙일 것
+- 테스트 방식: 이 PC엔 Node가 없음 → 로컬 정적 서버(`scratchpad/serve.ps1`, 포트 8765) + 브라우저에서 API 파일을 가짜 supabase로 실행해 검증. 실서버 확인은 Supabase MCP(SQL) + 중계 서버 Squid 로그 + Vercel Logs 화면
 
-### ❌ 남은 작업 (우선순위 순)
-1. 초기 비밀번호 변경 — 화면(상단바 "비밀번호 변경")에서 admin·manager 둘 다 바꿀 것 (기본 비번이 과거 문서에 평문으로 남아 있었음)
-2. 플랫폼 API 키 4종 재발급(과거 채팅에 노출) → Vercel 환경변수 교체 → Redeploy
-3. `POST /api/sync`로 주문 수집 테스트 → Supabase `orders` 확인
-4. 15분 자동 수집: Vercel Hobby 크론 한계 때문에 **외부 스케줄러**(cron-job.org 등)가 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출
-5. 남은 등록/수정: 상품 수정·삭제, 주문 발송 시 재고 자동 차감(지금은 수동 출고). 완료: 거래처 등록·수정 `api/oem/clients.js` (POST / PATCH ?id=), OEM 주문 등록 + 해운 단계 업데이트 `api/oem/orders.js` (POST / PATCH ?id=), 견적서 저장 + 상태 `api/oem/quotes.js` (POST / PATCH ?id=), 상품 등록 + 입고/출고/실사조정 `api/stock/index.js` (POST ?action=product|adjust). 새 기능은 기존 파일에 메서드/action으로 붙여 함수 개수를 아낄 것 (**Hobby 12개 제한, 현재 11개**)
-   - 견적서 PDF는 서버가 아니라 브라우저 인쇄(PDF로 저장): `frontend/quote_template.html`을 채워 숨은 iframe에서 print. 직인은 `frontend/stamp_semockorea.png` (assets/는 배포 안 됨)
-   - 단계별 날짜 이력이 필요하면 `oem_order_progress` 같은 테이블 추가가 필요 (지금은 shipped/delivered/settled 날짜만 저장)
-6. 에이블리 57컬럼 송장 엑셀 API
-7. 기존 `backend/api/`(Express)와 `api/`(서버리스) 중복 정리 — Vercel은 `api/`만 배포함. 하나로 통일할 것
+### ❌ 남은 작업
+1. **[내일] 쿠팡·에이블리·지그재그 연동** — 아래 "다음 작업" 참고
+2. 15분 자동 수집: Vercel Hobby 크론은 하루 1회 → **cron-job.org** 등이 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출 (CRON_SECRET은 Vercel에 있음)
+3. 수집 속도 개선: 주문 1건당 DB 3회 호출이라 7일치에서 45초 제한에 걸림 → upsert/insert 일괄 처리로 바꿀 것
+4. 초기 비밀번호 변경(admin·manager) 확인, 바탕화면 `클로드코드/PROXY_URL_for_vercel.txt` 삭제 확인
+5. 주문 발송 시 재고 자동 차감(주문 상품 ↔ 등록 상품 매칭 필요), 상품 수정·삭제
+6. 에이블리 57컬럼 송장 엑셀 (송장출력 탭은 아직 샘플 화면)
+7. 보안: 모든 테이블 RLS 꺼져 있음(서버가 service key로만 접근, 프론트는 Supabase 직접 호출 안 함). Vercel의 `SUPABASE_SERVICE_KEY`가 실제 service_role 키인지 확인 권장
+8. 기존 `backend/api/`(Express, 배포 안 됨) 정리
+
+### ▶ 다음 작업: 쿠팡 · 에이블리 · 지그재그 연동 (2026-11-26 예정)
+**공통 방식**: 네이버와 똑같이 → ① 공식 문서 확보 ② `sync/<채널>.js`를 공식 규격으로 재작성(현재 코드는 추측으로 작성돼 검증 안 됨) ③ 요청은 `utils/proxy.js`(PROXY_URL)로 ④ Squid `ALLOWED_DOMAINS`에 API 도메인 추가 ⑤ Vercel `SYNC_CHANNELS`에 채널 추가 ⑥ 1일 수집 → DB 필드 확인 → 7일 수집. 스토어별 집계표·배송처리는 채널만 들어오면 자동으로 채워짐
+
+**쿠팡 (Wing OPEN API)**
+- 대표님 준비: 쿠팡 Wing → OPEN API 키 **재발급**(과거 노출) → Access Key·Secret Key·업체코드(Vendor ID) 확인 → Vercel `COUPANG_ACCESS_KEY / COUPANG_SECRET_KEY / COUPANG_VENDOR_ID` 교체(값은 채팅 금지). **허용 IP 입력란이 있으면 101.79.26.42** 등록
+- 개발: HMAC 서명 날짜 형식(현재 4자리 연도 → 쿠팡 규격 확인), 주문 조회(ordersheets) 파라미터·페이징, 송장 등록 엔드포인트를 공식 문서(developers.coupangcorp.com)로 재확인. 도메인 `api-gateway.coupang.com`은 Squid 허용 목록에 이미 있음
+
+**에이블리 · 지그재그(카카오스타일)**
+- 판매자에게 공개된 공식 주문 API가 있는지부터 확인 필요. 현재 코드의 주소(`api.a-bly.com`, `api.zigzag.kr`)는 검증 안 된 추측
+- 대표님 준비: 에이블리 파트너스 / 지그재그 파트너센터에서 **API(연동) 신청 메뉴나 담당자 안내**가 있는지 확인, 있으면 발급 키·문서 링크·IP 등록 여부 확인
+- 공식 API가 없으면 대안: 각 판매자센터의 **주문 엑셀 다운로드 → 어드민에 업로드**하는 가져오기 기능(엑셀 컬럼 매핑) 구현
 
 ### 쇼핑몰 API 연동 구조 (2026-11-25)
 - 네이버·쿠팡은 **API 호출 IP 등록 필수** → Vercel(유동 IP) 대신 **고정 IP 중계 서버**를 거쳐 호출

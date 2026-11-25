@@ -212,6 +212,11 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .fpill { padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--white); color: var(--gray); font-family: inherit; white-space: nowrap; transition: all .12s; }
 .fpill.on { background: var(--green); color: #fff; border-color: var(--green); }
+.oem-group-head { display: inline-block; margin: 2px 0; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; }
+.oem-group-head span { font-weight: 500; opacity: .8; margin-left: 2px; }
+div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin: 0; }
+.oem-group-row td { background: #fafafa !important; padding: 6px 10px !important; border-top: 1px solid var(--border); }
+.oem-st-etc { background: #f3f4f6; color: #6b7280; }
 .settle-btn { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; font-family: inherit; cursor: pointer; border: 1px solid; white-space: nowrap; }
 .settle-btn.no  { background: #fff7ed; color: #b45309; border-color: #fdba74; }
 .settle-btn.yes { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
@@ -1592,12 +1597,29 @@ function renderOem(d) {
     document.getElementById('oem-cards').innerHTML = emptyMsg(msg);
     document.getElementById('oem-tbody').innerHTML = `<tr><td colspan="7">${emptyMsg(msg)}</td></tr>`;
   } else {
-    document.getElementById('oem-cards').innerHTML = list.map(o => {
-      return `<div class="order-card"><div class="order-card-top"><div><div class="order-no"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></div><div class="order-name">${esc(o.oem_clients?.name)}</div></div><div style="text-align:right">${oemStatusSelect(o)}<div style="margin-top:4px">${settleCell(o)}</div></div></div><div class="order-product">${esc(desc(o))}</div><div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">납품 ${esc(due(o))}</span></div></div>`;
-    }).join('');
-    document.getElementById('oem-tbody').innerHTML = list.map(o => {
-      return `<tr><td style="font-family:monospace;font-size:11px"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></td><td>${esc(o.oem_clients?.name)}</td><td>${esc(desc(o))}</td><td>${won(o.total_amount)}</td><td>${esc(due(o))}</td><td style="overflow:visible">${oemStatusSelect(o)}</td><td>${settleCell(o)}</td></tr>`;
-    }).join('');
+    const cardHtml = o => `<div class="order-card"><div class="order-card-top"><div><div class="order-no"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></div><div class="order-name">${esc(o.oem_clients?.name)}</div></div><div style="text-align:right">${oemStatusSelect(o)}<div style="margin-top:4px">${settleCell(o)}</div></div></div><div class="order-product">${esc(desc(o))}</div><div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">납품 ${esc(due(o))}</span></div></div>`;
+    const rowHtml = o => `<tr><td style="font-family:monospace;font-size:11px"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></td><td>${esc(o.oem_clients?.name)}</td><td>${esc(desc(o))}</td><td>${won(o.total_amount)}</td><td>${esc(due(o))}</td><td style="overflow:visible">${oemStatusSelect(o)}</td><td>${settleCell(o)}</td></tr>`;
+
+    // 상태별로 묶어서 표시 (납품완료는 맨 아래, 그 안에서는 미정산 → 정산완료 순)
+    const GROUP_ORDER = ['quoted', 'received', 'sample', 'production', 'shipping', 'cancelled', 'done'];
+    const groupLabel = k => k === 'cancelled' ? '취소' : (OEM_FLOW.find(f => f.key === k)?.label || k);
+    const groups = GROUP_ORDER.map(k => ({
+      key: k,
+      items: list.filter(o => oemFlowKey(o.status) === k)
+        .sort((a, b) => k === 'done' ? (a.status === 'settled') - (b.status === 'settled') : 0)
+    })).filter(g => g.items.length);
+    // 정의되지 않은 상태가 있으면 맨 앞에 따로
+    const known = new Set(GROUP_ORDER);
+    const etc = list.filter(o => !known.has(oemFlowKey(o.status)));
+    if (etc.length) groups.unshift({ key: 'etc', items: etc });
+
+    const headLabel = g => g.key === 'etc' ? '기타' : groupLabel(g.key);
+    document.getElementById('oem-cards').innerHTML = groups.map(g =>
+      `<div class="oem-group-head oem-st-${g.key}">${esc(headLabel(g))} <span>${g.items.length}건</span></div>` + g.items.map(cardHtml).join('')
+    ).join('');
+    document.getElementById('oem-tbody').innerHTML = groups.map(g =>
+      `<tr class="oem-group-row"><td colspan="7"><span class="oem-group-head oem-st-${g.key}">${esc(headLabel(g))} <span>${g.items.length}건</span></span></td></tr>` + g.items.map(rowHtml).join('')
+    ).join('');
   }
 
   // 해운 진행: 취소 제외, 진행 중 → 완료 순

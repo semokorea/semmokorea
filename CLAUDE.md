@@ -50,12 +50,14 @@ Excel:     xlsx 라이브러리 (Node.js)
 
 ## 로그인 계정
 
-| 아이디 | 비밀번호 | 권한 |
-|--------|----------|------|
-| admin | Admin1234! | 대표 관리자 (owner) |
-| manager | Mgr5678! | 운영 매니저 (manager) |
+| 아이디 | 권한 |
+|--------|------|
+| admin | 대표 관리자 (owner) |
+| manager | 운영 매니저 (manager) |
 
-> ⚠️ 실서버 배포 시 반드시 bcrypt 해시로 변경할 것
+> 비밀번호는 `admin_users` 테이블에 bcrypt 해시로만 저장된다 (`db/seed_admin_users.sql` 참고).
+> 로그인은 `POST /api/auth/login` → JWT. 문서/코드에 평문 비밀번호를 적지 말 것.
+> 초기 비밀번호는 로그인 후 반드시 변경한다.
 
 ---
 

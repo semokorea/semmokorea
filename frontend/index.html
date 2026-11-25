@@ -368,10 +368,6 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
     <div class="login-field"><label>비밀번호</label><input type="password" id="inp-pw" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <div class="login-error" id="login-err"></div>
     <button class="login-btn" onclick="doLogin()">로그인</button>
-    <div class="login-hint">
-      <b>대표 관리자</b> admin / Admin1234!<br>
-      <b>운영 매니저</b> manager / Mgr5678!
-    </div>
   </div>
 </div>
 
@@ -974,22 +970,49 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 </div>
 
 <script>
-// ── 계정 ──
-const ACCS = {
-  admin:   {pw:'Admin1234!', name:'대표 관리자', init:'AD'},
-  manager: {pw:'Mgr5678!',   name:'운영 매니저', init:'MG'},
-};
+// ── 인증 (서버 /api/auth/login → JWT) ──
+const API_BASE = '/api';
 let curUser = null;
+let authToken = null;
 
-function doLogin() {
+function apiFetch(path, opts = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (authToken) headers.Authorization = 'Bearer ' + authToken;
+  return fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+}
+
+async function doLogin() {
   const u = document.getElementById('inp-user').value.trim();
   const p = document.getElementById('inp-pw').value;
   const err = document.getElementById('login-err');
-  if (!ACCS[u] || ACCS[u].pw !== p) { err.textContent='아이디 또는 비밀번호가 올바르지 않습니다.'; return; }
-  curUser = { ...ACCS[u], username: u };
+  const btn = document.querySelector('.login-btn');
+  if (!u || !p) { err.textContent = '아이디와 비밀번호를 입력하세요.'; return; }
+  err.textContent = '';
+  btn.disabled = true;
+  try {
+    const res = await fetch(API_BASE + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok || !data.token) {
+      err.textContent = data.error || '로그인에 실패했습니다. (' + res.status + ')';
+      return;
+    }
+    authToken = data.token;
+    curUser = { ...data.user, init: (data.user.name || u).slice(0, 2).toUpperCase() };
+  } catch (e) {
+    err.textContent = '서버에 연결할 수 없습니다.';
+    return;
+  } finally {
+    btn.disabled = false;
+  }
+  document.getElementById('inp-pw').value = '';
   document.getElementById('nav-av').textContent = curUser.init;
   document.getElementById('nav-nm').textContent = curUser.name;
-  document.getElementById('more-username').textContent = curUser.name + ' (' + u + ')';
+  document.getElementById('more-username').textContent = curUser.name + ' (' + curUser.username + ')';
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('admin-screen').style.display = 'block';
   startSync(); mInitItems(); renderTL('018');
@@ -997,6 +1020,7 @@ function doLogin() {
 
 function doLogout() {
   curUser = null;
+  authToken = null;
   document.getElementById('admin-screen').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('inp-pw').value = '';

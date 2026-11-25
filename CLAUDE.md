@@ -30,12 +30,13 @@
 | 화면 조회 API | `api/data/index.js` | `GET /api/data?type=shop\|stock\|sales\|oem` (JWT 필요). Hobby 함수 개수 제한 때문에 하나로 묶음. 브라우저 목업 테스트만 함, 실DB 미검증 |
 | DB 스키마 + 시드 | `db/schema.sql`, `db/add_sync_logs.sql`, `db/seed_admin_users.sql` | Supabase에 테이블 16개 생성됨, admin/manager 계정(bcrypt) 입력됨 |
 | 로그인 API | `api/auth/login.js`, `utils/auth.js` | bcrypt + JWT 7일. 운영에서 200 확인 |
+| 비밀번호 변경 | `api/auth/password.js`, 상단바/더보기 메뉴 | 본인만, 현재 비번 확인, 8자 이상+영문+숫자. 변경 후 재로그인. 기존 JWT는 만료(7일)까지 유효 |
 | 주문/수집/배송 API (서버리스) | `api/orders`, `api/sync`, `api/shipments/bulk`, `api/cron/sync` | 문법·모듈 로드만 검증. **실제 플랫폼 호출은 미검증** |
 | 플랫폼 연동 모듈 | `sync/{naver,coupang,ably,zigzag,scheduler}.js`, `utils/supabase.js` | `syncOrders()`, `registerShipment()` |
 | 견적서 HTML + 직인 | `frontend/quote_template.html`, `assets/stamp_semockorea.png` | 서버 PDF API는 아직 없음 |
 
 ### ❌ 남은 작업 (우선순위 순)
-1. 초기 비밀번호 변경 (기본 비번이 과거 문서에 평문으로 남아 있었음 → bcrypt 해시 UPDATE)
+1. 초기 비밀번호 변경 — 화면(상단바 "비밀번호 변경")에서 admin·manager 둘 다 바꿀 것 (기본 비번이 과거 문서에 평문으로 남아 있었음)
 2. 플랫폼 API 키 4종 재발급(과거 채팅에 노출) → Vercel 환경변수 교체 → Redeploy
 3. `POST /api/sync`로 주문 수집 테스트 → Supabase `orders` 확인
 4. 15분 자동 수집: Vercel Hobby 크론 한계 때문에 **외부 스케줄러**(cron-job.org 등)가 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출

@@ -385,6 +385,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <span class="sync-pill" id="sync-lbl" onclick="loadAll()" style="cursor:pointer" title="클릭하면 새로고침">동기화 0초 전</span>
       <div class="topbar-avatar" id="nav-av">AD</div>
       <span class="topbar-username" id="nav-nm">관리자</span>
+      <button class="logout-btn" onclick="openPasswordModal()">비밀번호 변경</button>
       <button class="logout-btn" onclick="doLogout()">로그아웃</button>
     </div>
   </nav>
@@ -667,10 +668,25 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <div style="font-size:12px;color:var(--text2);margin-bottom:16px" id="more-sync"></div>
       <div style="display:flex;flex-direction:column;gap:2px">
         <button class="btn" style="text-align:left;padding:12px 4px;border:none;border-bottom:1px solid var(--border);border-radius:0;font-size:14px" onclick="closeModal('m-more');loadAll()">새로고침</button>
-        <button class="btn" style="text-align:left;padding:12px 4px;border:none;border-bottom:1px solid var(--border);border-radius:0;font-size:14px" onclick="closeModal('m-more')">알림 설정</button>
+        <button class="btn" style="text-align:left;padding:12px 4px;border:none;border-bottom:1px solid var(--border);border-radius:0;font-size:14px" onclick="closeModal('m-more');openPasswordModal()">비밀번호 변경</button>
         <button class="btn" style="text-align:left;padding:12px 4px;border:none;border-radius:0;font-size:14px;color:var(--red)" onclick="closeModal('m-more');doLogout()">로그아웃</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 비밀번호 변경 -->
+<div class="modal-back" id="m-password" onclick="if(event.target===this)closeModal('m-password')">
+  <div class="modal-sheet">
+    <div class="modal-drag"></div>
+    <div class="modal-inner">
+      <div class="modal-title">비밀번호 변경</div>
+      <div class="form-field"><label>현재 비밀번호</label><input type="password" id="pw-cur" autocomplete="current-password"></div>
+      <div class="form-field"><label>새 비밀번호 (8자 이상, 영문+숫자)</label><input type="password" id="pw-new" autocomplete="new-password"></div>
+      <div class="form-field"><label>새 비밀번호 확인</label><input type="password" id="pw-new2" autocomplete="new-password" onkeydown="if(event.key==='Enter')changePassword()"></div>
+      <div id="pw-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('m-password')">취소</button><button class="btn btn-green" id="pw-btn" onclick="changePassword()">변경</button></div>
   </div>
 </div>
 
@@ -845,6 +861,42 @@ async function doLogin() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('admin-screen').style.display = 'block';
   startSync(); mInitItems(); loadAll();
+}
+
+// ── 비밀번호 변경 ──
+function openPasswordModal() {
+  ['pw-cur', 'pw-new', 'pw-new2'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pw-err').textContent = '';
+  openModal('m-password');
+  setTimeout(() => document.getElementById('pw-cur').focus(), 50);
+}
+
+async function changePassword() {
+  const cur = document.getElementById('pw-cur').value;
+  const nw = document.getElementById('pw-new').value;
+  const nw2 = document.getElementById('pw-new2').value;
+  const err = document.getElementById('pw-err');
+  const btn = document.getElementById('pw-btn');
+  if (!cur || !nw) { err.textContent = '현재 비밀번호와 새 비밀번호를 입력하세요.'; return; }
+  if (nw.length < 8) { err.textContent = '새 비밀번호는 8자 이상이어야 합니다.'; return; }
+  if (!/[A-Za-z]/.test(nw) || !/[0-9]/.test(nw)) { err.textContent = '새 비밀번호에 영문과 숫자를 모두 넣으세요.'; return; }
+  if (nw !== nw2) { err.textContent = '새 비밀번호 확인이 일치하지 않습니다.'; return; }
+  err.textContent = '';
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/auth/password', { method: 'POST', body: JSON.stringify({ current_password: cur, new_password: nw }) });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { closeModal('m-password'); alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) { err.textContent = r.error || ('변경 실패 (' + res.status + ')'); return; }
+    ['pw-cur', 'pw-new', 'pw-new2'].forEach(id => document.getElementById(id).value = '');
+    closeModal('m-password');
+    alert('비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인하세요.');
+    doLogout();
+  } catch (e) {
+    err.textContent = '서버에 연결할 수 없습니다.';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function doLogout() {

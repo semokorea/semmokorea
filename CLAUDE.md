@@ -40,7 +40,7 @@
 2. 플랫폼 API 키 4종 재발급(과거 채팅에 노출) → Vercel 환경변수 교체 → Redeploy
 3. `POST /api/sync`로 주문 수집 테스트 → Supabase `orders` 확인
 4. 15분 자동 수집: Vercel Hobby 크론 한계 때문에 **외부 스케줄러**(cron-job.org 등)가 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출
-5. 등록/수정 API + 모달 연결 (OEM 주문 등록, 거래처 등록·수정, 견적서 저장, 해운 단계 업데이트, 재고 입고)
+5. 등록/수정 API + 모달 연결 (OEM 주문 등록, 견적서 저장, 해운 단계 업데이트, 재고 입고). 거래처 등록·수정은 완료: `api/oem/clients.js` (POST / PATCH ?id=)
 6. 견적서 PDF API(`/api/quote/pdf`), 에이블리 57컬럼 송장 엑셀 API
 7. 기존 `backend/api/`(Express)와 `api/`(서버리스) 중복 정리 — Vercel은 `api/`만 배포함. 하나로 통일할 것
 

@@ -628,7 +628,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <div class="sub-page" id="op-client">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="font-size:16px;font-weight:700">거래처 관리</div>
-          <button class="btn btn-sm btn-amber" onclick="openModal('m-client')">거래처 등록</button>
+          <button class="btn btn-sm btn-amber" onclick="openClientModal()">거래처 등록</button>
         </div>
         <div class="card" id="client-list"></div>
       </div>
@@ -771,31 +771,17 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
   <div class="modal-sheet">
     <div class="modal-drag"></div>
     <div class="modal-inner">
-      <div class="modal-title">거래처 등록</div>
-      <div class="form-grid"><div class="form-field"><label>거래처명 *</label><input placeholder="회사명"></div><div class="form-field"><label>사업자번호</label><input placeholder="000-00-00000"></div></div>
-      <div class="form-grid"><div class="form-field"><label>대표자명</label><input placeholder="대표자명"></div><div class="form-field"><label>연락처</label><input type="tel" placeholder="010-0000-0000" inputmode="tel"></div></div>
-      <div class="form-field"><label>이메일</label><input type="email" placeholder="email@company.com" inputmode="email"></div>
-      <div class="form-field"><label>주소</label><input placeholder="도로명 주소"></div>
-      <div class="form-field"><label>상세주소</label><input placeholder="상세 주소"></div>
-      <div class="form-field"><label>월 목표 수주액</label><input type="number" placeholder="0" inputmode="numeric"></div>
+      <div class="modal-title" id="cl-title">거래처 등록</div>
+      <div class="form-grid"><div class="form-field"><label>거래처명 *</label><input id="cl-name" placeholder="회사명" maxlength="100"></div><div class="form-field"><label>사업자번호</label><input id="cl-biz" placeholder="000-00-00000" maxlength="20"></div></div>
+      <div class="form-grid"><div class="form-field"><label>대표자명</label><input id="cl-rep" placeholder="대표자명" maxlength="50"></div><div class="form-field"><label>연락처</label><input id="cl-phone" type="tel" placeholder="010-0000-0000" inputmode="tel" maxlength="20"></div></div>
+      <div class="form-field"><label>이메일</label><input id="cl-email" type="email" placeholder="email@company.com" inputmode="email" maxlength="100"></div>
+      <div class="form-field"><label>주소</label><input id="cl-addr" placeholder="도로명 주소"></div>
+      <div class="form-field"><label>상세주소</label><input id="cl-addr2" placeholder="상세 주소"></div>
+      <div class="form-field"><label>월 목표 수주액 (원)</label><input id="cl-goal" type="number" placeholder="0" inputmode="numeric" min="0"></div>
+      <div class="form-field"><label>메모</label><textarea id="cl-memo" rows="2"></textarea></div>
+      <div id="cl-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
     </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('m-client')">취소</button><button class="btn btn-amber" onclick="closeModal('m-client')">등록</button></div>
-  </div>
-</div>
-
-<!-- 거래처 수정 -->
-<div class="modal-back" id="m-client-edit" onclick="if(event.target===this)closeModal('m-client-edit')">
-  <div class="modal-sheet">
-    <div class="modal-drag"></div>
-    <div class="modal-inner">
-      <div class="modal-title">거래처 수정 — 한강어패럴</div>
-      <div class="form-grid"><div class="form-field"><label>거래처명</label><input value="한강어패럴"></div><div class="form-field"><label>사업자번호</label><input value="123-45-67890"></div></div>
-      <div class="form-grid"><div class="form-field"><label>대표자명</label><input value="김한강"></div><div class="form-field"><label>연락처</label><input value="010-1234-5678"></div></div>
-      <div class="form-field"><label>이메일</label><input value="order@hangang.co.kr"></div>
-      <div class="form-field"><label>주소</label><input value="서울특별시 중구 을지로 456, 3층 (을지로빌딩)"></div>
-      <div class="form-field"><label>월 목표 수주액</label><input type="number" value="20000000"></div>
-    </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('m-client-edit')">취소</button><button class="btn btn-amber" onclick="closeModal('m-client-edit')">저장</button></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('m-client')">취소</button><button class="btn btn-amber" id="cl-btn" onclick="saveClient()">등록</button></div>
   </div>
 </div>
 
@@ -1366,11 +1352,57 @@ function renderOem(d) {
       <div class="client-meta">${c.biz_no ? `<span><b>사업자</b>${esc(c.biz_no)}</span>` : ''}${c.rep_name ? `<span><b>대표</b>${esc(c.rep_name)}</span>` : ''}${c.phone ? `<span><b>연락처</b>${esc(c.phone)}</span>` : ''}${c.email ? `<span><b>이메일</b>${esc(c.email)}</span>` : ''}</div>
       <div class="client-goal"><span style="font-size:12px;color:var(--text2)">${c.monthly_goal ? `이달 목표 ${man(c.monthly_goal)}원 · ${pct}%` : '월 목표 미설정'}</span><span class="client-amount">${won(c.month_amount)}원</span></div>
       <div class="prog-bg"><div class="prog-fill" style="width:${Math.min(100, pct)}%"></div></div>
-      <div class="client-btns"><button class="btn btn-sm btn-outline" onclick="oemTab('quote')">견적서</button><button class="btn btn-sm" onclick="oemTab('order')">주문</button></div></div>`;
+      <div class="client-btns"><button class="btn btn-sm" onclick="openClientModal('${esc(c.id)}')">수정</button><button class="btn btn-sm btn-outline" onclick="oemTab('quote')">견적서</button><button class="btn btn-sm" onclick="oemTab('order')">주문</button></div></div>`;
   }).join('') : emptyMsg('등록된 거래처가 없습니다');
 
   const clientOpts = d.clients.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
   document.querySelectorAll('.client-select').forEach(s => s.innerHTML = clientOpts);
+}
+
+// ── 거래처 등록/수정 ──
+let editingClientId = null;
+const CL_FIELDS = { name: 'cl-name', biz_no: 'cl-biz', rep_name: 'cl-rep', phone: 'cl-phone', email: 'cl-email', memo: 'cl-memo' };
+
+function openClientModal(id) {
+  const c = id ? (DATA.oem?.clients || []).find(x => x.id === id) : null;
+  editingClientId = c ? c.id : null;
+  document.getElementById('cl-title').textContent = c ? '거래처 수정 — ' + c.name : '거래처 등록';
+  document.getElementById('cl-btn').textContent = c ? '저장' : '등록';
+  for (const [k, el] of Object.entries(CL_FIELDS)) document.getElementById(el).value = c?.[k] || '';
+  document.getElementById('cl-addr').value = c?.address || '';
+  document.getElementById('cl-addr2').value = '';
+  document.getElementById('cl-goal').value = c?.monthly_goal || '';
+  document.getElementById('cl-err').textContent = '';
+  openModal('m-client');
+  setTimeout(() => document.getElementById('cl-name').focus(), 50);
+}
+
+async function saveClient() {
+  const err = document.getElementById('cl-err');
+  const btn = document.getElementById('cl-btn');
+  const body = {};
+  for (const [k, el] of Object.entries(CL_FIELDS)) body[k] = document.getElementById(el).value.trim();
+  body.address = [document.getElementById('cl-addr').value.trim(), document.getElementById('cl-addr2').value.trim()].filter(Boolean).join(' ');
+  body.monthly_goal = Number(document.getElementById('cl-goal').value) || 0;
+  if (!body.name) { err.textContent = '거래처명을 입력하세요.'; return; }
+  if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) { err.textContent = '이메일 형식이 올바르지 않습니다.'; return; }
+  if (body.monthly_goal < 0) { err.textContent = '월 목표 수주액이 올바르지 않습니다.'; return; }
+  err.textContent = '';
+  btn.disabled = true;
+  try {
+    const path = editingClientId ? '/oem/clients?id=' + encodeURIComponent(editingClientId) : '/oem/clients';
+    const res = await apiFetch(path, { method: editingClientId ? 'PATCH' : 'POST', body: JSON.stringify(body) });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { closeModal('m-client'); alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) { err.textContent = r.error || ('저장 실패 (' + res.status + ')'); return; }
+    closeModal('m-client');
+    await loadData('oem');
+    renderOem(DATA.oem);
+  } catch (e) {
+    err.textContent = '서버에 연결할 수 없습니다.';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function openQuote(id) {

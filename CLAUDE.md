@@ -10,28 +10,43 @@
 
 ---
 
-## 현재 개발 상태 (Claude Chat에서 완료된 것)
+## 현재 개발 상태 (2026-11-25 기준)
 
-### ✅ 완료된 것
+### 배포 정보
+- 운영 주소: **https://semokorea.vercel.app** (`semo` — **m이 하나**. `semmokorea`는 틀린 주소 → 404 DEPLOYMENT_NOT_FOUND)
+- GitHub: `semokorea/semmokorea` (main 푸시 → Vercel 자동 배포)
+- Vercel 플랜: **Hobby** → 크론은 **하루 1회까지** (15분 크론을 vercel.json에 넣으면 배포가 Error)
+- Supabase: 프로젝트 `semockorea-admin` (ID `qhuitkweccncoyevuqba`, Free 플랜 → 7일 미접속 시 일시정지, 재개에 1~3분)
+- 환경변수는 전부 Vercel에만 둔다 (코드/문서/채팅에 키·시크릿 금지). 필요한 이름:
+  `SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, JWT_SECRET, CRON_SECRET,
+  NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, COUPANG_ACCESS_KEY, COUPANG_SECRET_KEY, COUPANG_VENDOR_ID,
+  ABLY_API_KEY, ZIGZAG_API_KEY`
+  (주의: 과거 `SUPABASE_ANON_KE` 오타 이름이 있었음 → `SUPABASE_ANON_KEY`로 고칠 것)
 
-| 항목 | 파일 | 상태 |
+### ✅ 완료
+| 항목 | 위치 | 비고 |
 |------|------|------|
-| 반응형 어드민 UI (PC+모바일) | `frontend/index.html` | 완료 — 샘플 데이터 |
-| DB 스키마 (PostgreSQL) | `db/schema.sql` | 완료 — Supabase 실행 대기 |
-| 견적서 PDF 생성 로직 | `frontend/quote_template.html` | 완료 — wkhtmltopdf 기반 |
-| 세모코리아 직인 이미지 | `assets/stamp_semockorea.png` | 완료 |
-| 에이블리 57컬럼 송장 양식 | `docs/INVOICE_COLUMNS.md` | 완료 |
+| 반응형 어드민 UI | `frontend/index.html` | 샘플 데이터. **로그인은 API 연동 완료** (`doLogin`, `apiFetch`) |
+| DB 스키마 + 시드 | `db/schema.sql`, `db/add_sync_logs.sql`, `db/seed_admin_users.sql` | Supabase에 테이블 16개 생성됨, admin/manager 계정(bcrypt) 입력됨 |
+| 로그인 API | `api/auth/login.js`, `utils/auth.js` | bcrypt + JWT 7일. 운영에서 200 확인 |
+| 주문/수집/배송 API (서버리스) | `api/orders`, `api/sync`, `api/shipments/bulk`, `api/cron/sync` | 문법·모듈 로드만 검증. **실제 플랫폼 호출은 미검증** |
+| 플랫폼 연동 모듈 | `sync/{naver,coupang,ably,zigzag,scheduler}.js`, `utils/supabase.js` | `syncOrders()`, `registerShipment()` |
+| 견적서 HTML + 직인 | `frontend/quote_template.html`, `assets/stamp_semockorea.png` | 서버 PDF API는 아직 없음 |
 
-### ❌ 미완성 — Claude Code에서 작업 필요
+### ❌ 남은 작업 (우선순위 순)
+1. 초기 비밀번호 변경 (기본 비번이 과거 문서에 평문으로 남아 있었음 → bcrypt 해시 UPDATE)
+2. 플랫폼 API 키 4종 재발급(과거 채팅에 노출) → Vercel 환경변수 교체 → Redeploy
+3. `POST /api/sync`로 주문 수집 테스트 → Supabase `orders` 확인
+4. 15분 자동 수집: Vercel Hobby 크론 한계 때문에 **외부 스케줄러**(cron-job.org 등)가 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출
+5. 프론트 샘플 데이터 → 실제 API 데이터 연결 (주문/재고/OEM/배송)
+6. 견적서 PDF API(`/api/quote/pdf`), 에이블리 57컬럼 송장 엑셀 API
+7. 기존 `backend/api/`(Express)와 `api/`(서버리스) 중복 정리 — Vercel은 `api/`만 배포함. 하나로 통일할 것
 
-| 항목 | 우선순위 | 설명 |
-|------|----------|------|
-| Supabase 연동 (인증·DB) | 🔴 높음 | 로그인·주문·재고 실제 데이터 |
-| 플랫폼 API 수집 스케줄러 | 🔴 높음 | 네이버·쿠팡·에이블리·지그재그 |
-| 견적서 PDF API | 🟡 중간 | `/api/quote/pdf` 엔드포인트 |
-| 송장 엑셀 다운로드 API | 🟡 중간 | 에이블리 57컬럼 양식 유지 |
-| CJ대한통운 배송처리 API | 🟡 중간 | 운송장 등록 + 플랫폼 반영 |
-| 실시간 재고 동기화 | 🟠 낮음 | 채널별 재고 자동 조정 |
+### 알려진 함정
+- `vercel.json`은 **zero-config**(`outputDirectory: frontend`, `api/`는 자동 함수). 예전 `builds/routes` 방식은 `/api/*`가 404였음
+- 다른 도메인에서 API를 호출하면 CORS로 막힘 (같은 도메인 `/api/...`로 호출할 것)
+- 로컬 테스트: `npm install` 후 `node -e "require('./sync/scheduler')"`는 NODE_ENV≠production이면 15분 타이머를 켜서 종료되지 않음(정상)
+- 과거 GitHub 웹 업로드로 파일명/내용이 뒤바뀐 사고가 있었음 → 웹 업로드 대신 git 사용
 
 ---
 
@@ -64,23 +79,24 @@ Excel:     xlsx 라이브러리 (Node.js)
 ## 디렉토리 구조
 
 ```
-semockorea-admin/
-├── CLAUDE.md                  ← 이 파일 (Claude Code 가이드)
-├── frontend/
-│   ├── index.html             ← 메인 어드민 (PC+모바일 반응형)
-│   ├── admin_v2.html          ← 이전 버전 (참고용)
-│   └── quote_template.html    ← 견적서 HTML 템플릿
-├── backend/
-│   └── api/                   ← API 서버 코드 작성 위치
-├── db/
-│   └── schema.sql             ← PostgreSQL 스키마 (Supabase에 실행)
-├── assets/
-│   └── stamp_semockorea.png   ← 세모코리아 직인 이미지
-└── docs/
-    ├── FEATURES.md            ← 기능 명세
-    ├── API_SPEC.md            ← API 설계 명세
-    ├── INVOICE_COLUMNS.md     ← 에이블리 57컬럼 송장 양식
-    └── DEPLOYMENT.md          ← Vercel+Supabase 배포 가이드
+semmokorea/
+├── CLAUDE.md                  ← 이 파일
+├── vercel.json                ← zero-config + 일 1회 크론
+├── package.json
+├── api/                       ← Vercel 서버리스 함수 (배포됨)
+│   ├── auth/login.js
+│   ├── orders/index.js
+│   ├── sync/index.js
+│   ├── shipments/bulk.js
+│   └── cron/sync.js
+├── sync/                      ← 플랫폼별 수집/배송처리 모듈
+│   ├── naver.js  coupang.js  ably.js  zigzag.js  scheduler.js
+├── utils/                     ← supabase.js, auth.js
+├── frontend/                  ← index.html(메인), admin_v2.html(참고), quote_template.html
+├── backend/api/               ← 이전 Express 구현 (배포 안 됨, 정리 대상)
+├── db/                        ← schema.sql, add_sync_logs.sql, seed_admin_users.sql
+├── assets/                    ← stamp_semockorea.png
+└── docs/                      ← FEATURES / API_SPEC / INVOICE_COLUMNS / DEPLOYMENT
 ```
 
 ---

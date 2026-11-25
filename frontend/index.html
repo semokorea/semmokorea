@@ -389,6 +389,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 }
 @media (min-width: 1024px) {
   .metrics { grid-template-columns: repeat(4, 1fr); }
+  #shop-metrics { grid-template-columns: repeat(5, 1fr); }
   .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 }
 .section-grid { display: block; }
@@ -1438,10 +1439,11 @@ function renderShop(d) {
   }
   const m = d.metrics;
   document.getElementById('shop-metrics').innerHTML =
-    metric('오늘 주문', won(m.today_orders), '오늘') +
-    metric('발송 대기', won(m.pending) + '건', m.pending ? '처리 필요' : '', 'color:var(--amber)', 'dn') +
-    metric('발송 완료', won(m.shipped_today) + '건', '오늘', 'color:#16a34a') +
-    metric('오늘 매출', man(m.today_sales), '', 'font-size:16px');
+    metric('오늘 주문', won(m.today_orders) + '건', '취소 제외') +
+    metric('배송준비중', won(m.pending) + '건', m.pending ? '처리 필요' : '', 'color:var(--amber)', 'dn') +
+    metric('배송중', won(m.shipping || 0) + '건', '전체') +
+    metric('배송완료', won(m.delivered_today || 0) + '건', '오늘', 'color:#16a34a') +
+    metric('오늘매출', man(m.today_sales), '', 'font-size:16px');
   renderOrders();
   renderShipList();
 }

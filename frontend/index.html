@@ -206,6 +206,8 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .fpill { padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--white); color: var(--gray); font-family: inherit; white-space: nowrap; transition: all .12s; }
 .fpill.on { background: var(--green); color: #fff; border-color: var(--green); }
+.oem-no { color: var(--green); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
+.oem-no:hover { background: var(--green-l); }
 /* OEM 주문 상태 선택 */
 .oem-st { padding: 4px 6px; border-radius: 6px; font-size: 12px; font-weight: 600; font-family: inherit; border: 1px solid transparent; cursor: pointer; outline: none; }
 .oem-st:focus { border-color: var(--green); }
@@ -706,6 +708,26 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
   </div>
 </div>
 
+<!-- OEM 주문 상세 (주문번호 클릭) -->
+<div class="modal-back" id="m-oem-detail" onclick="if(event.target===this)closeModal('m-oem-detail')">
+  <div class="modal-sheet modal-pc">
+    <div class="modal-drag"></div>
+    <div class="modal-inner">
+      <div class="modal-title" id="od-title">OEM 주문</div>
+      <div id="od-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px 12px;font-size:12px;margin-bottom:12px"></div>
+      <div class="tbl-scroll" style="border:1px solid var(--border);border-radius:8px">
+        <table class="tbl">
+          <thead><tr><th style="width:28px">No</th><th>품목 / 규격</th><th style="width:70px;text-align:right">수량</th><th style="width:90px;text-align:right">단가</th><th style="width:100px;text-align:right">금액</th></tr></thead>
+          <tbody id="od-items"></tbody>
+        </table>
+      </div>
+      <div id="od-sum" style="margin-top:10px;font-size:12px"></div>
+      <div id="od-memo" style="margin-top:8px;font-size:12px;color:var(--text2)"></div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('m-oem-detail')">닫기</button></div>
+  </div>
+</div>
+
 <!-- 주문 목록 (집계 숫자 클릭) -->
 <div class="modal-back" id="m-orders" onclick="if(event.target===this)closeModal('m-orders')">
   <div class="modal-sheet modal-pc" style="max-width:960px">
@@ -777,7 +799,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
   <div class="modal-sheet modal-pc">
     <div class="modal-drag"></div>
     <div class="modal-inner">
-      <div class="modal-title">견적서 작성</div>
+      <div class="modal-title" id="qt-title">견적서 작성</div>
       <div class="form-grid">
         <div class="form-field"><label>거래처 *</label><select class="client-select" id="qt-client"></select></div>
         <div class="form-field"><label>유효기간</label><input type="date" id="qt-valid"></div>
@@ -831,10 +853,14 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
         <select id="qv-status" onchange="setQuoteStatus(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">
           <option value="draft">작성중</option><option value="sent">발송완료</option><option value="confirmed">확정</option>
         </select>
+        <span id="qv-order" style="color:var(--text2)"></span>
       </div>
+      <div id="qv-sync-msg" style="display:none;margin-top:10px;padding:10px 12px;background:#dbeafe;border-radius:8px;font-size:12px;color:#1d4ed8"></div>
     </div>
     <div class="modal-footer">
+      <button class="btn" style="color:var(--red);margin-right:auto" onclick="deleteQuote()">삭제</button>
       <button class="btn" onclick="closeModal('m-quote-view')">닫기</button>
+      <button class="btn" onclick="closeModal('m-quote-view');openQuoteModal(currentQuoteId)">수정</button>
       <button class="btn btn-amber" onclick="printQuote(currentQuoteId)">PDF 다운로드</button>
     </div>
   </div>
@@ -1550,10 +1576,10 @@ function renderOem(d) {
     document.getElementById('oem-tbody').innerHTML = `<tr><td colspan="6">${emptyMsg('등록된 OEM 주문이 없습니다')}</td></tr>`;
   } else {
     document.getElementById('oem-cards').innerHTML = d.orders.map(o => {
-      return `<div class="order-card"><div class="order-card-top"><div><div class="order-no">${esc(o.order_no)}</div><div class="order-name">${esc(o.oem_clients?.name)}</div></div><div style="text-align:right">${oemStatusSelect(o)}</div></div><div class="order-product">${esc(desc(o))}</div><div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">납품 ${esc(due(o))}</span></div></div>`;
+      return `<div class="order-card"><div class="order-card-top"><div><div class="order-no"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></div><div class="order-name">${esc(o.oem_clients?.name)}</div></div><div style="text-align:right">${oemStatusSelect(o)}</div></div><div class="order-product">${esc(desc(o))}</div><div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">납품 ${esc(due(o))}</span></div></div>`;
     }).join('');
     document.getElementById('oem-tbody').innerHTML = d.orders.map(o => {
-      return `<tr><td style="font-family:monospace;font-size:11px">${esc(o.order_no)}</td><td>${esc(o.oem_clients?.name)}</td><td>${esc(desc(o))}</td><td>${won(o.total_amount)}</td><td>${esc(due(o))}</td><td style="overflow:visible">${oemStatusSelect(o)}</td></tr>`;
+      return `<tr><td style="font-family:monospace;font-size:11px"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></td><td>${esc(o.oem_clients?.name)}</td><td>${esc(desc(o))}</td><td>${won(o.total_amount)}</td><td>${esc(due(o))}</td><td style="overflow:visible">${oemStatusSelect(o)}</td></tr>`;
     }).join('');
   }
 
@@ -1884,15 +1910,66 @@ async function saveClient() {
 // ── 견적서 작성/저장 ──
 let currentQuoteId = null;
 
-function openQuoteModal() {
-  mInitItems();
-  document.getElementById('m-ship').value = '';
-  document.getElementById('qt-notes').value = '';
-  const v = new Date(Date.now() + 9 * 3600e3 + 14 * 864e5).toISOString().slice(0, 10); // 기본 유효기간 2주
-  document.getElementById('qt-valid').value = v;
+let editingQuoteId = null;   // 수정 중인 견적서 (null이면 새로 작성)
+
+// id를 주면 그 견적서 내용을 채운 '수정' 모드로 연다
+function openQuoteModal(id) {
+  const q = id ? (DATA.oem?.quotes || []).find(x => x.id === id) : null;
+  editingQuoteId = q ? q.id : null;
+  document.getElementById('qt-title').textContent = q ? `견적서 수정 — ${q.quote_no}` : '견적서 작성';
+  const [btnSave, btnPdf] = document.querySelectorAll('.qt-save');
+  btnSave.textContent = q ? '수정 저장' : '임시저장';
+  btnPdf.textContent = '저장 후 PDF';
+
+  if (q) {
+    const items = (q.oem_quotation_items || []).slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    mIC = 0;
+    document.getElementById('m-item-tbody').innerHTML = '';
+    (items.length ? items : [{}]).forEach(it => {
+      mAddItem();
+      const ins = document.getElementById('m-item-tbody').lastElementChild.querySelectorAll('input');
+      ins[0].value = it.product_name ? it.product_name + (it.spec ? ' ' + it.spec : '') : '';
+      ins[1].value = it.quantity ?? '';
+      ins[2].value = it.unit_price ?? '';
+      mRowCalc(mSeq);
+    });
+    document.getElementById('qt-client').value = q.client_id;
+    document.getElementById('qt-valid').value = q.valid_until ? fmtDate(q.valid_until) : '';
+    document.getElementById('m-ship').value = q.shipping_fee || '';
+    document.getElementById('qt-notes').value = q.notes || '';
+  } else {
+    mInitItems();
+    document.getElementById('m-ship').value = '';
+    document.getElementById('qt-notes').value = '';
+    const v = new Date(Date.now() + 9 * 3600e3 + 14 * 864e5).toISOString().slice(0, 10); // 기본 유효기간 2주
+    document.getElementById('qt-valid').value = v;
+  }
   document.getElementById('qt-err').textContent = (DATA.oem?.clients || []).length ? '' : '먼저 거래처를 등록하세요. (OEM 사업 → 거래처)';
   mCalc();
   openModal('m-quote');
+}
+
+async function deleteQuote() {
+  const q = (DATA.oem?.quotes || []).find(x => x.id === currentQuoteId);
+  if (!q) return;
+  const o = q.oem_order_id ? (DATA.oem?.orders || []).find(x => x.id === q.oem_order_id) : null;
+  const note = o
+    ? (o.status === 'quoted' ? `\n주문관리의 ${o.order_no}(견적서발행)도 같이 삭제됩니다.` : `\n주문관리의 ${o.order_no}는 진행 중이라 그대로 남습니다.`)
+    : '';
+  if (!confirm(`견적서 ${q.quote_no}를 삭제할까요? 되돌릴 수 없습니다.${note}`)) return;
+  try {
+    const res = await apiFetch('/oem/quotes?id=' + encodeURIComponent(q.id), { method: 'DELETE' });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) throw new Error(r.error || res.status);
+    closeModal('m-quote-view');
+    currentQuoteId = null;
+    await loadData('oem');
+    renderOem(DATA.oem);
+    alert(`견적서 ${r.quote_no}를 삭제했습니다.` + (r.orderNote ? '\n' + r.orderNote : ''));
+  } catch (e) {
+    alert('삭제 실패: ' + e.message);
+  }
 }
 
 async function saveQuote(thenPdf) {
@@ -1917,21 +1994,69 @@ async function saveQuote(thenPdf) {
   err.textContent = '';
   document.querySelectorAll('.qt-save').forEach(b => b.disabled = true);
   try {
-    const res = await apiFetch('/oem/quotes', { method: 'POST', body: JSON.stringify(body) });
+    const res = editingQuoteId
+      ? await apiFetch('/oem/quotes?id=' + encodeURIComponent(editingQuoteId), { method: 'PUT', body: JSON.stringify(body) })
+      : await apiFetch('/oem/quotes', { method: 'POST', body: JSON.stringify(body) });
     const r = await res.json().catch(() => ({}));
     if (res.status === 401) { closeModal('m-quote'); alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
     if (!res.ok) { err.textContent = r.error || ('저장 실패 (' + res.status + ')'); return; }
     closeModal('m-quote');
+    editingQuoteId = null;
     await loadData('oem');
     renderOem(DATA.oem);
     switchMain('oem'); oemTab('quote');
     if (r.warning) alert(r.warning);
+    if (r.orderNote) alert('견적서를 수정했습니다.\n' + r.orderNote);
     if (thenPdf) openQuote(r.id);
   } catch (e) {
     err.textContent = '서버에 연결할 수 없습니다.';
   } finally {
     document.querySelectorAll('.qt-save').forEach(b => b.disabled = false);
   }
+}
+
+// ── OEM 주문 상세 (주문번호 클릭): 품목별 수량·단가·금액 ──
+function openOemDetail(id) {
+  const o = (DATA.oem?.orders || []).find(x => x.id === id);
+  if (!o) return;
+  const flow = OEM_FLOW.find(f => f.key === oemFlowKey(o.status))?.label || oemStatus(o.status).label;
+  const sub = SHIPPING_STAGES.includes(o.status) || o.status === 'settled' ? ` (${oemStatus(o.status).label})` : '';
+  document.getElementById('od-title').textContent = `${o.order_no} · ${o.oem_clients?.name || ''}`;
+  const info = (k, v) => `<div><div style="color:var(--text3);font-size:11px">${k}</div><div style="font-weight:600">${v}</div></div>`;
+  document.getElementById('od-info').innerHTML =
+    info('상태', esc(flow + sub)) +
+    info('주문일', esc(fmtDate(o.order_dt) || '-')) +
+    info('납품예정', esc(fmtDate(o.expected_dt) || '-')) +
+    info('납품일', esc(fmtDate(o.delivered_dt) || '-'));
+  const items = o.oem_order_items || [];
+  document.getElementById('od-items').innerHTML = items.length ? items.map((it, i) => `<tr>
+      <td style="color:var(--text3)">${i + 1}</td>
+      <td>${esc(it.product_name)}${it.spec ? ` <span style="color:var(--text2)">(${esc(it.spec)})</span>` : ''}</td>
+      <td style="text-align:right">${won(it.quantity)}</td>
+      <td style="text-align:right">${won(it.unit_price)}</td>
+      <td style="text-align:right;font-weight:600">${won(it.total_price ?? (it.quantity || 0) * (it.unit_price || 0))}</td>
+    </tr>`).join('') : `<tr><td colspan="5">${emptyMsg('등록된 품목이 없습니다')}</td></tr>`;
+  const qty = items.reduce((s, it) => s + (it.quantity || 0), 0);
+  const grand = (o.total_amount || 0) + (o.vat_amount || 0) + (o.shipping_fee || 0);
+  document.getElementById('od-sum').innerHTML =
+    `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;padding:10px 12px;background:var(--green-l);border-radius:8px">
+       <span>총 수량 <b>${won(qty)}</b></span>
+       <span>공급가액 <b>${won(o.total_amount)}</b></span>
+       <span>부가세 <b>${won(o.vat_amount)}</b></span>
+       ${o.shipping_fee ? `<span>배송비 <b>${won(o.shipping_fee)}</b></span>` : ''}
+       <span>합계 <b style="color:var(--green)">${won(grand)}원</b></span>
+     </div>`;
+  document.getElementById('od-memo').textContent = o.memo ? '메모: ' + o.memo : '';
+  openModal('m-oem-detail');
+}
+
+// 견적서 보기 창: 연결된 주문관리 주문 표시
+function showQuoteOrder() {
+  const q = (DATA.oem?.quotes || []).find(x => x.id === currentQuoteId);
+  const o = q?.oem_order_id ? (DATA.oem?.orders || []).find(x => x.id === q.oem_order_id) : null;
+  document.getElementById('qv-order').innerHTML = o
+    ? `· 주문관리: ${esc(o.order_no)} <span class="badge ${oemStatus(o.status).badge}">${esc(OEM_FLOW.find(f => f.key === oemFlowKey(o.status))?.label || oemStatus(o.status).label)}</span>`
+    : '· 주문관리 연결 없음 (확정하면 주문접수로 등록됩니다)';
 }
 
 async function setQuoteStatus(status) {
@@ -1943,6 +2068,16 @@ async function setQuoteStatus(status) {
     if (!res.ok) throw new Error(r.error || res.status);
     await loadData('oem');
     renderOem(DATA.oem);
+    // 주문관리 반영 결과 안내
+    const msg = document.getElementById('qv-sync-msg');
+    const no = r.order?.order_no ? esc(r.order.order_no) : '';
+    const goBtn = ` <a style="font-weight:700;cursor:pointer;text-decoration:underline" onclick="closeModal('m-quote-view');oemTab('order')">주문관리에서 보기 →</a>`;
+    if (r.warning) { msg.style.display = 'block'; msg.innerHTML = esc(r.warning); }
+    else if (r.orderAction === 'confirmed') { msg.style.display = 'block'; msg.innerHTML = `주문관리의 ${no} 주문이 <b>주문접수</b>로 바뀌었습니다.` + goBtn; }
+    else if (r.orderAction === 'created')   { msg.style.display = 'block'; msg.innerHTML = `주문관리에 ${no} 주문이 <b>주문접수</b> 상태로 등록되었습니다.` + goBtn; }
+    else if (r.orderAction === 'reverted')  { msg.style.display = 'block'; msg.innerHTML = `주문관리의 ${no} 주문을 <b>견적서발행</b>으로 되돌렸습니다.`; }
+    else msg.style.display = 'none';
+    showQuoteOrder();
   } catch (e) {
     alert('상태 변경 실패: ' + e.message);
     const q = (DATA.oem?.quotes || []).find(x => x.id === currentQuoteId);
@@ -2030,6 +2165,8 @@ function openQuote(id) {
   document.getElementById('m-pdf-msg').style.display = 'none';
   document.getElementById('qv-status').value = q.status in QUOTE_STATUS ? q.status : 'draft';
   currentQuoteId = q.id;
+  document.getElementById('qv-sync-msg').style.display = 'none';
+  showQuoteOrder();
   openModal('m-quote-view');
 }
 </script>

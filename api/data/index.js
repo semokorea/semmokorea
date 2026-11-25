@@ -165,7 +165,7 @@ async function getOem() {
         id, order_no, status, title, total_amount, vat_amount, shipping_fee,
         order_dt, expected_dt, delivered_dt, settled_dt, memo, client_id,
         oem_clients ( name ),
-        oem_order_items ( product_name, spec, quantity ),
+        oem_order_items ( product_name, spec, quantity, unit_price, total_price ),
         oem_shipments ( carrier, tracking_no, shipped_dt, delivered_dt, memo )
       `)
       .order('created_at', { ascending: false })
@@ -174,7 +174,7 @@ async function getOem() {
       .from('oem_quotations')
       .select(`
         id, quote_no, status, valid_until, total_amount, vat_amount, shipping_fee,
-        notes, created_at, client_id,
+        notes, created_at, client_id, oem_order_id,
         oem_clients ( name, address ),
         oem_quotation_items ( product_name, spec, quantity, unit_price, total_price, sort_order )
       `)

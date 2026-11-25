@@ -40,7 +40,7 @@
 2. 플랫폼 API 키 4종 재발급(과거 채팅에 노출) → Vercel 환경변수 교체 → Redeploy
 3. `POST /api/sync`로 주문 수집 테스트 → Supabase `orders` 확인
 4. 15분 자동 수집: Vercel Hobby 크론 한계 때문에 **외부 스케줄러**(cron-job.org 등)가 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출
-5. 등록/수정 API + 모달 연결 (재고 입고 + 상품 등록). 완료: 거래처 등록·수정 `api/oem/clients.js` (POST / PATCH ?id=), OEM 주문 등록 + 해운 단계 업데이트 `api/oem/orders.js` (POST / PATCH ?id=), 견적서 저장 + 상태 `api/oem/quotes.js` (POST / PATCH ?id=). 새 기능은 기존 파일에 메서드로 붙여 함수 개수를 아낄 것 (Hobby 12개 제한, 현재 10개)
+5. 남은 등록/수정: 상품 수정·삭제, 주문 발송 시 재고 자동 차감(지금은 수동 출고). 완료: 거래처 등록·수정 `api/oem/clients.js` (POST / PATCH ?id=), OEM 주문 등록 + 해운 단계 업데이트 `api/oem/orders.js` (POST / PATCH ?id=), 견적서 저장 + 상태 `api/oem/quotes.js` (POST / PATCH ?id=), 상품 등록 + 입고/출고/실사조정 `api/stock/index.js` (POST ?action=product|adjust). 새 기능은 기존 파일에 메서드/action으로 붙여 함수 개수를 아낄 것 (**Hobby 12개 제한, 현재 11개**)
    - 견적서 PDF는 서버가 아니라 브라우저 인쇄(PDF로 저장): `frontend/quote_template.html`을 채워 숨은 iframe에서 print. 직인은 `frontend/stamp_semockorea.png` (assets/는 배포 안 됨)
    - 단계별 날짜 이력이 필요하면 `oem_order_progress` 같은 테이블 추가가 필요 (지금은 shipped/delivered/settled 날짜만 저장)
 6. 에이블리 57컬럼 송장 엑셀 API

@@ -81,6 +81,7 @@ async function getStock() {
   const { data: outLogs, error: logErr } = await supabase
     .from('stock_logs')
     .select('change_qty')
+    .eq('reason', 'out')   // 실사 조정(adjust)은 출고로 세지 않음
     .lt('change_qty', 0)
     .gte('created_at', kstDate());
   check(logErr);

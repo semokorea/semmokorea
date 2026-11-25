@@ -619,7 +619,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <div class="sub-page" id="op-quote">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="font-size:16px;font-weight:700">견적서 관리</div>
-          <button class="btn btn-sm btn-amber" onclick="openModal('m-quote')">견적서 작성</button>
+          <button class="btn btn-sm btn-amber" onclick="openQuoteModal()">견적서 작성</button>
         </div>
         <div class="card" id="quote-list"></div>
       </div>
@@ -697,8 +697,8 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
     <div class="modal-inner">
       <div class="modal-title">견적서 작성</div>
       <div class="form-grid">
-        <div class="form-field"><label>거래처</label><select class="client-select"></select></div>
-        <div class="form-field"><label>유효기간</label><input type="date" value="2025-04-30"></div>
+        <div class="form-field"><label>거래처 *</label><select class="client-select" id="qt-client"></select></div>
+        <div class="form-field"><label>유효기간</label><input type="date" id="qt-valid"></div>
       </div>
       <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px">품목 (최대 10개)</div>
       <table class="item-tbl">
@@ -712,12 +712,13 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
         <div class="qsum-row"><span>부가세 10%</span><span id="m-vat">0원</span></div>
         <div class="qsum-total"><span>합계 (VAT포함)</span><span id="m-total">0원</span></div>
       </div>
-      <div class="form-field" style="margin-top:10px"><label>특이사항</label><textarea rows="2" placeholder="납품 조건 등"></textarea></div>
+      <div class="form-field" style="margin-top:10px"><label>특이사항</label><textarea id="qt-notes" rows="2" placeholder="납품 조건 등"></textarea></div>
+      <div id="qt-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('m-quote')">취소</button>
-      <button class="btn">임시저장</button>
-      <button class="btn btn-amber" onclick="closeModal('m-quote');openModal('m-quote-view')">저장 후 PDF</button>
+      <button class="btn qt-save" onclick="saveQuote(false)">임시저장</button>
+      <button class="btn btn-amber qt-save" onclick="saveQuote(true)">저장 후 PDF</button>
     </div>
   </div>
 </div>
@@ -742,11 +743,17 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
         <tbody id="qv-items"></tbody>
       </table>
       <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px" id="qv-sum"></div>
-      <div id="m-pdf-msg" style="display:none;margin-top:10px;padding:10px 12px;background:var(--green-l);border-radius:8px;font-size:12px;color:#15803d">PDF 다운로드 완료 (실서버 연동 시 자동 생성)</div>
+      <div id="m-pdf-msg" style="display:none;margin-top:10px;padding:10px 12px;background:var(--green-l);border-radius:8px;font-size:12px;color:#15803d">인쇄 창에서 대상을 <b>PDF로 저장</b>으로 선택하세요.</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px">
+        <span style="color:var(--text2)">상태</span>
+        <select id="qv-status" onchange="setQuoteStatus(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">
+          <option value="draft">작성중</option><option value="sent">발송완료</option><option value="confirmed">확정</option>
+        </select>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('m-quote-view')">닫기</button>
-      <button class="btn btn-amber" onclick="document.getElementById('m-pdf-msg').style.display='block'">PDF 다운로드</button>
+      <button class="btn btn-amber" onclick="printQuote(currentQuoteId)">PDF 다운로드</button>
     </div>
   </div>
 </div>
@@ -953,7 +960,7 @@ function oemTab(t) {
 // ── FAB ──
 function onFab() {
   const isShop = document.getElementById('page-shop').classList.contains('active');
-  if (isShop) openModal('m-quote');
+  if (isShop) openQuoteModal();
   else openOemOrderModal();
 }
 
@@ -987,20 +994,26 @@ function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 // ── 견적서 품목 (최대 10개) ──
-let mIC = 0;
+let mIC = 0;   // 현재 품목 줄 수
+let mSeq = 0;  // 줄 id용 일련번호 (삭제 후 추가해도 id가 겹치지 않게)
 function mInitItems() { mIC=0; document.getElementById('m-item-tbody').innerHTML=''; mAddItem(); mAddItem(); mAddItem(); }
+function mRenumber() {
+  document.querySelectorAll('#m-item-tbody tr').forEach((r, i) => r.firstElementChild.textContent = i + 1);
+}
 function mAddItem() {
   if (mIC >= 10) { alert('최대 10개까지 추가 가능합니다.'); return; }
-  mIC++;
+  mIC++; mSeq++;
+  const n = mSeq;
   const tr = document.createElement('tr');
-  tr.id = 'mir-'+mIC;
-  tr.innerHTML = `<td style="text-align:center;color:var(--text3);font-size:11px">${mIC}</td>
-    <td><input class="item-inp" placeholder="품목명/규격" oninput="mCalc()"></td>
-    <td><input class="item-inp" type="number" placeholder="0" style="text-align:right" oninput="mRowCalc(${mIC})"></td>
-    <td><input class="item-inp" type="number" placeholder="0" style="text-align:right" oninput="mRowCalc(${mIC})"></td>
-    <td style="text-align:right;font-size:12px;color:var(--green);font-weight:600;padding:4px 6px" id="mrt-${mIC}">0</td>
-    <td style="text-align:center"><button onclick="mDelItem(${mIC})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:16px;padding:2px">×</button></td>`;
+  tr.id = 'mir-'+n;
+  tr.innerHTML = `<td style="text-align:center;color:var(--text3);font-size:11px"></td>
+    <td><input class="item-inp" placeholder="품목명/규격" maxlength="200" oninput="mCalc()"></td>
+    <td><input class="item-inp" type="number" placeholder="0" min="1" style="text-align:right" oninput="mRowCalc(${n})"></td>
+    <td><input class="item-inp" type="number" placeholder="0" min="0" style="text-align:right" oninput="mRowCalc(${n})"></td>
+    <td style="text-align:right;font-size:12px;color:var(--green);font-weight:600;padding:4px 6px" id="mrt-${n}">0</td>
+    <td style="text-align:center"><button onclick="mDelItem(${n})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:16px;padding:2px">×</button></td>`;
   document.getElementById('m-item-tbody').appendChild(tr);
+  mRenumber();
   document.getElementById('m-ic').textContent = mIC;
   document.getElementById('m-add-btn').style.display = mIC>=10?'none':'block';
   mCalc();
@@ -1009,6 +1022,7 @@ function mDelItem(idx) {
   if (mIC <= 1) { alert('최소 1개 필요합니다.'); return; }
   const el = document.getElementById('mir-'+idx);
   if (el) { el.remove(); mIC--; }
+  mRenumber();
   document.getElementById('m-ic').textContent = mIC;
   document.getElementById('m-add-btn').style.display = 'block';
   mCalc();
@@ -1517,6 +1531,138 @@ async function saveClient() {
   }
 }
 
+// ── 견적서 작성/저장 ──
+let currentQuoteId = null;
+
+function openQuoteModal() {
+  mInitItems();
+  document.getElementById('m-ship').value = '';
+  document.getElementById('qt-notes').value = '';
+  const v = new Date(Date.now() + 9 * 3600e3 + 14 * 864e5).toISOString().slice(0, 10); // 기본 유효기간 2주
+  document.getElementById('qt-valid').value = v;
+  document.getElementById('qt-err').textContent = (DATA.oem?.clients || []).length ? '' : '먼저 거래처를 등록하세요. (OEM 사업 → 거래처)';
+  mCalc();
+  openModal('m-quote');
+}
+
+async function saveQuote(thenPdf) {
+  const err = document.getElementById('qt-err');
+  const items = [...document.querySelectorAll('#m-item-tbody tr')].map(r => {
+    const ins = r.querySelectorAll('input');
+    return { product_name: ins[0].value.trim(), quantity: parseInt(ins[1].value) || 0, unit_price: parseInt(ins[2].value) || 0 };
+  }).filter(i => i.product_name || i.quantity || i.unit_price);
+  const body = {
+    client_id:    document.getElementById('qt-client').value,
+    valid_until:  document.getElementById('qt-valid').value || null,
+    shipping_fee: parseInt(document.getElementById('m-ship').value) || 0,
+    notes:        document.getElementById('qt-notes').value.trim(),
+    status:       'draft',
+    items
+  };
+  if (!body.client_id) { err.textContent = '먼저 거래처를 등록하세요. (OEM 사업 → 거래처)'; return; }
+  if (!items.length) { err.textContent = '품목을 1개 이상 입력하세요.'; return; }
+  const bad = items.find(i => !i.product_name || i.quantity < 1 || i.unit_price < 0);
+  if (bad) { err.textContent = bad.product_name ? `"${bad.product_name}" 수량을 1 이상 입력하세요.` : '품목명이 비어 있는 줄이 있습니다.'; return; }
+  if (body.shipping_fee < 0) { err.textContent = '배송비가 올바르지 않습니다.'; return; }
+  err.textContent = '';
+  document.querySelectorAll('.qt-save').forEach(b => b.disabled = true);
+  try {
+    const res = await apiFetch('/oem/quotes', { method: 'POST', body: JSON.stringify(body) });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { closeModal('m-quote'); alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) { err.textContent = r.error || ('저장 실패 (' + res.status + ')'); return; }
+    closeModal('m-quote');
+    await loadData('oem');
+    renderOem(DATA.oem);
+    switchMain('oem'); oemTab('quote');
+    if (thenPdf) openQuote(r.id);
+  } catch (e) {
+    err.textContent = '서버에 연결할 수 없습니다.';
+  } finally {
+    document.querySelectorAll('.qt-save').forEach(b => b.disabled = false);
+  }
+}
+
+async function setQuoteStatus(status) {
+  if (!currentQuoteId) return;
+  try {
+    const res = await apiFetch('/oem/quotes?id=' + encodeURIComponent(currentQuoteId), { method: 'PATCH', body: JSON.stringify({ status }) });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) throw new Error(r.error || res.status);
+    await loadData('oem');
+    renderOem(DATA.oem);
+  } catch (e) {
+    alert('상태 변경 실패: ' + e.message);
+    const q = (DATA.oem?.quotes || []).find(x => x.id === currentQuoteId);
+    if (q) document.getElementById('qv-status').value = q.status;
+  }
+}
+
+// ── 견적서 PDF: quote_template.html을 채워 숨은 iframe에서 인쇄 → 브라우저의 "PDF로 저장" ──
+const COMPANY = {
+  company_name: '세모코리아', biz_no: '131-72-00034', rep_name: '김현석',
+  company_addr: '경기도 김포시 김포한강10로133번길 107', company_phone: '010-9959-8982', company_email: ''
+};
+let quoteTplCache = null;
+
+async function printQuote(id) {
+  const q = (DATA.oem?.quotes || []).find(x => x.id === id);
+  if (!q) return;
+  try {
+    if (!quoteTplCache) {
+      const res = await fetch('quote_template.html', { cache: 'no-cache' });
+      if (!res.ok) throw new Error('템플릿을 불러오지 못했습니다 (' + res.status + ')');
+      quoteTplCache = await res.text();
+    }
+    const client = (DATA.oem?.clients || []).find(c => c.id === q.client_id) || q.oem_clients || {};
+    const items = (q.oem_quotation_items || []).slice().sort((a, b) => a.sort_order - b.sort_order);
+    const grand = (q.total_amount || 0) + (q.vat_amount || 0) + (q.shipping_fee || 0);
+    const rows = items.map((it, i) => `<tr><td class="td-no">${i + 1}</td><td class="td-name">${esc(it.product_name)}${it.spec ? ' / ' + esc(it.spec) : ''}</td><td class="td-qty">${won(it.quantity)}</td><td class="td-price">${won(it.unit_price)}</td><td class="td-total">${won(it.total_price)}</td><td class="td-note"></td></tr>`).join('');
+    const empty = Array.from({ length: Math.max(0, 10 - items.length) }, () => '<tr class="td-empty"><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>').join('');
+    const vals = {
+      ...Object.fromEntries(Object.entries(COMPANY).map(([k, v]) => [k, esc(v)])),
+      quote_no: esc(q.quote_no),
+      issue_date: esc(fmtDate(q.created_at).replace(/-/g, '.')),
+      valid_until: esc(q.valid_until ? fmtDate(q.valid_until).replace(/-/g, '.') : '-'),
+      client_name: esc(client.name || ''),
+      client_addr: esc(client.address || '-'),
+      client_contact: esc(client.rep_name || ''),
+      client_phone: esc(client.phone || ''),
+      grand_total: won(grand),
+      supply_total: won(q.total_amount),
+      vat: won(q.vat_amount),
+      shipping_row: q.shipping_fee ? `<div class="sum-row"><span>배송비</span><span class="sum-val">${won(q.shipping_fee)} 원</span></div>` : '',
+      notes: q.notes ? esc(q.notes).replace(/\n/g, '<br>') : '-',
+      item_rows: rows,
+      empty_rows: empty
+    };
+    let tpl = quoteTplCache;
+    if (!COMPANY.company_email) tpl = tpl.replace(/\s*&nbsp;\|&nbsp;\s*\{\{company_email\}\}/g, '').replace(/&nbsp;&nbsp;&nbsp;\{\{company_email\}\}/g, '');
+    let html = tpl.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vals ? vals[k] : ''));
+    // CSS로 그린 임시 직인 → 실제 직인 이미지
+    html = html.replace(/<div class="stamp">[\s\S]*?<div class="stamp-in">직인<\/div>\s*<\/div>\s*<\/div>/,
+      `<img src="${new URL('stamp_semockorea.png', location.href)}" alt="직인" style="width:28mm;height:28mm;opacity:.9">`);
+    html = html.replace('<head>',`<head><title>${esc(q.quote_no)}_${esc(client.name || '')}</title><style>@page{size:A4;margin:0}</style>`);
+
+    let frame = document.getElementById('quote-print-frame');
+    if (frame) frame.remove();
+    frame = document.createElement('iframe');
+    frame.id = 'quote-print-frame';
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(frame);
+    frame.srcdoc = html;
+    frame.onload = () => {
+      const img = frame.contentDocument.querySelector('img');
+      const go = () => { frame.contentWindow.focus(); frame.contentWindow.print(); };
+      if (img && !img.complete) { img.onload = go; img.onerror = go; } else go();
+    };
+    document.getElementById('m-pdf-msg').style.display = 'block';
+  } catch (e) {
+    alert('PDF 생성 실패: ' + e.message);
+  }
+}
+
 function openQuote(id) {
   const q = (DATA.oem?.quotes || []).find(x => x.id === id);
   if (!q) return;
@@ -1531,6 +1677,8 @@ function openQuote(id) {
   document.getElementById('qv-items').innerHTML = items.map(i => `<tr><td style="${td}">${esc(i.product_name)}${i.spec ? ` (${esc(i.spec)})` : ''}</td><td style="${td};text-align:center">${won(i.quantity)}</td><td style="${td};text-align:right">${won(i.total_price)}</td></tr>`).join('');
   document.getElementById('qv-sum').textContent = `공급가액 ${won(q.total_amount)} · 부가세 ${won(q.vat_amount)} · 배송 ${won(q.shipping_fee)}`;
   document.getElementById('m-pdf-msg').style.display = 'none';
+  document.getElementById('qv-status').value = q.status in QUOTE_STATUS ? q.status : 'draft';
+  currentQuoteId = q.id;
   openModal('m-quote-view');
 }
 </script>

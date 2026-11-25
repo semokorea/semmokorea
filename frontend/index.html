@@ -1695,7 +1695,7 @@ function renderOem(d) {
   }
   const m = d.metrics;
   document.getElementById('oem-metrics').innerHTML =
-    metric('이달 수주', man(m.month_amount), '', 'font-size:16px') +
+    metric('매출', man(m.year_amount || 0), `${m.year || new Date().getFullYear()}년 누적`, 'font-size:16px') +
     metric('진행 중', m.in_progress + '건', m.quoted ? `견적 대기 ${m.quoted}건` : '') +
     metric('이달 납품 예정', m.due_this_month + '건') +
     `<div class="metric metric-click${oemUnsettledOnly ? ' on' : ''}" onclick="toggleUnsettledFilter()" title="눌러서 미정산 주문만 보기">` +

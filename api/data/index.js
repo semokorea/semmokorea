@@ -189,8 +189,11 @@ async function getOem() {
   [orders, quotes, clients].forEach(r => check(r.error));
 
   const orderRows = orders.data || [];
+  // 견적서발행(quoted)은 아직 확정 주문이 아니므로 수주·진행 집계에서 뺀다
+  const NOT_ACTIVE = ['quoted', 'delivered', 'settled', 'cancelled'];
   const monthAmount = {};
   for (const o of orderRows) {
+    if (o.status === 'quoted' || o.status === 'cancelled') continue;
     if (o.order_dt && o.order_dt >= monthStart) {
       monthAmount[o.client_id] = (monthAmount[o.client_id] || 0) + (o.total_amount || 0);
     }
@@ -202,9 +205,10 @@ async function getOem() {
     clients: (clients.data || []).map(c => ({ ...c, month_amount: monthAmount[c.id] || 0 })),
     metrics: {
       month_amount: Object.values(monthAmount).reduce((s, v) => s + v, 0),
-      in_progress:  orderRows.filter(o => !['delivered', 'settled', 'cancelled'].includes(o.status)).length,
+      in_progress:  orderRows.filter(o => !NOT_ACTIVE.includes(o.status)).length,
+      quoted:       orderRows.filter(o => o.status === 'quoted').length,
       due_this_month: orderRows.filter(o => o.expected_dt && o.expected_dt.slice(0, 7) === monthStart.slice(0, 7)
-                                        && !['delivered', 'settled', 'cancelled'].includes(o.status)).length,
+                                        && !NOT_ACTIVE.includes(o.status)).length,
       unsettled:    orderRows.filter(o => o.status === 'delivered').length
     }
   };

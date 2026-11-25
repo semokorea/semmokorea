@@ -3,6 +3,7 @@
 //   body: { client_id, valid_until, shipping_fee, notes, status('draft'|'sent'), items: [{ product_name, quantity, unit_price }] }
 // PATCH /api/oem/quotes?id=... — 상태 변경 { status: 'draft'|'sent'|'confirmed' }
 // 견적번호는 QT-YYMM-NNN. 금액은 서버에서 다시 계산한다 (공급가액 = Σ수량×단가, 부가세 10%).
+// 저장 시 주문관리에 '견적서발행'(quoted) 상태의 OEM 주문도 만들어 연결한다 (oem_quotations.oem_order_id).
 const { supabase } = require('../../utils/supabase');
 const { verifyRequest } = require('../../utils/auth');
 
@@ -80,7 +81,66 @@ async function createQuote(req, res) {
     await supabase.from('oem_quotations').delete().eq('id', quote.id);
     return res.status(500).json({ error: itemErr.message });
   }
-  return res.status(201).json(quote);
+
+  // 주문관리에 '견적서발행' 상태의 OEM 주문을 함께 만들고 견적서와 연결한다.
+  // 실패해도 견적서는 저장된 상태로 두고 경고만 돌려준다.
+  let order = null, warning = null;
+  try {
+    order = await createQuotedOrder(quote, items, today);
+  } catch (e) {
+    warning = '견적서는 저장됐지만 주문관리 연결에 실패했습니다: ' + e.message;
+    console.error('[QUOTE→ORDER]', e.message);
+  }
+  return res.status(201).json({ ...quote, oem_order_id: order?.id || null, warning });
+}
+
+async function nextOrderNo(prefix) {
+  const { data, error } = await supabase
+    .from('oem_orders').select('order_no')
+    .like('order_no', prefix + '%')
+    .order('order_no', { ascending: false }).limit(1);
+  if (error) throw new Error(error.message);
+  const last = data && data[0] ? parseInt(data[0].order_no.slice(prefix.length), 10) || 0 : 0;
+  return prefix + String(last + 1).padStart(3, '0');
+}
+
+async function createQuotedOrder(quote, items, today) {
+  const prefix = `OEM-${today.slice(2, 4)}${today.slice(5, 7)}-`;
+  const title = items[0].product_name + (items.length > 1 ? ` 외 ${items.length - 1}종` : '');
+  let order = null;
+  for (let attempt = 0; attempt < 3 && !order; attempt++) {
+    const order_no = await nextOrderNo(prefix);
+    const { data, error } = await supabase.from('oem_orders').insert({
+      order_no,
+      client_id:    quote.client_id,
+      status:       'quoted',
+      title:        title.slice(0, 200),
+      total_amount: quote.total_amount,
+      vat_amount:   quote.vat_amount,
+      shipping_fee: quote.shipping_fee,
+      order_dt:     today,
+      memo:         `견적서 ${quote.quote_no}`
+    }).select().single();
+    if (!error) order = data;
+    else if (error.code !== '23505') throw new Error(error.message);
+  }
+  if (!order) throw new Error('주문번호 생성 실패');
+
+  const { error: itemErr } = await supabase.from('oem_order_items').insert(items.map(it => ({
+    oem_order_id: order.id,
+    product_name: it.product_name,
+    quantity:     it.quantity,
+    unit_price:   it.unit_price,
+    total_price:  it.total_price
+  })));
+  if (itemErr) {
+    await supabase.from('oem_orders').delete().eq('id', order.id);
+    throw new Error(itemErr.message);
+  }
+
+  const { error: linkErr } = await supabase.from('oem_quotations').update({ oem_order_id: order.id }).eq('id', quote.id);
+  if (linkErr) throw new Error(linkErr.message);
+  return order;
 }
 
 async function updateStatus(req, res) {

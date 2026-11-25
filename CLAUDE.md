@@ -63,7 +63,7 @@
 - 로컬 테스트: `npm install` 후 `node -e "require('./sync/scheduler')"`는 NODE_ENV≠production이면 15분 타이머를 켜서 종료되지 않음(정상)
 - 과거 GitHub 웹 업로드로 파일명/내용이 뒤바뀐 사고가 있었음 → 웹 업로드 대신 git 사용
 - `shipments.order_id`에는 UNIQUE가 없어 `upsert(onConflict:'order_id')`가 실패함 → `api/shipments/bulk.js`는 조회 후 update/insert
-- `oem_orders.status` 값 규칙(프론트 `OEM_STATUS`): `received`(접수) → `factory, china, sea, customs, cleared, delivered`(해운 6단계) → `settled`(정산완료), `cancelled`. 단계별 날짜 이력 테이블은 아직 없음
+- `oem_orders.status` 값 규칙(프론트 `OEM_STATUS`/`OEM_FLOW`): `quoted`(견적서발행, 견적서 저장 시 자동 생성) → `received`(주문접수) → `sample`(샘플진행중) → `production`(메인진행중) → `factory, china, sea, customs, cleared`(= 주문관리의 '출고중', 해운 세부 단계) → `delivered`(납품완료) → `settled`(정산완료), `cancelled`. 주문관리 드롭다운과 해운진행 타임라인이 같은 값을 써서 자동 연동. quoted→진행으로 바뀌면 연결된 견적서가 confirmed. 단계별 날짜 이력 테이블은 아직 없음
 - 견적서 상태: `draft | sent | confirmed`
 
 ---

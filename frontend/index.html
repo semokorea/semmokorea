@@ -206,6 +206,16 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .fpill { padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--white); color: var(--gray); font-family: inherit; white-space: nowrap; transition: all .12s; }
 .fpill.on { background: var(--green); color: #fff; border-color: var(--green); }
+/* OEM 주문 상태 선택 */
+.oem-st { padding: 4px 6px; border-radius: 6px; font-size: 12px; font-weight: 600; font-family: inherit; border: 1px solid transparent; cursor: pointer; outline: none; }
+.oem-st:focus { border-color: var(--green); }
+.oem-st-quoted     { background: #ede9fe; color: #5b21b6; }
+.oem-st-received   { background: #dbeafe; color: #1d4ed8; }
+.oem-st-sample     { background: #fef3c7; color: #92400e; }
+.oem-st-production { background: #ffedd5; color: #9a3412; }
+.oem-st-shipping   { background: #fce7f3; color: #9d174d; }
+.oem-st-done       { background: #d1fae5; color: #065f46; }
+.oem-st-cancelled  { background: #f3f4f6; color: #6b7280; }
 /* 스토어별 집계 표 */
 .sum-tbl th.num, .sum-tbl td.num { text-align: right; }
 .sum-tbl td { vertical-align: top; }
@@ -611,7 +621,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
           <!-- PC: 테이블형 -->
           <div class="pc-only">
             <table class="tbl">
-              <thead><tr><th style="width:120px">주문번호</th><th style="width:90px">거래처</th><th>내용</th><th style="width:90px">금액</th><th style="width:80px">납품예정</th><th style="width:75px">상태</th></tr></thead>
+              <thead><tr><th style="width:120px">주문번호</th><th style="width:90px">거래처</th><th>내용</th><th style="width:90px">금액</th><th style="width:80px">납품예정</th><th style="width:120px">상태</th></tr></thead>
               <tbody id="oem-tbody"></tbody>
             </table>
           </div>
@@ -874,7 +884,10 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <div class="modal-title">진행상황 업데이트</div>
       <div class="form-field"><label>주문 선택</label><select id="su-order" onchange="suFill()"></select></div>
       <div class="form-field"><label>현재 단계</label><select id="su-status">
+        <option value="quoted">견적서 발행</option>
         <option value="received">주문 접수</option>
+        <option value="sample">샘플 진행중</option>
+        <option value="production">메인(본생산) 진행중</option>
         <option value="factory">1. 공장 출고 준비중</option>
         <option value="china">2. 중국 물류 대기중</option>
         <option value="sea">3. 한국 운송중 (해운)</option>
@@ -1126,7 +1139,10 @@ const STAGES = ['공장 출고 준비중','중국 물류 대기중','한국 운�
 const STAGE_DESC = ['중국 공장 생산 완료 후 출고 준비','중국 현지 물류센터 입고·선적 대기','해상 운송 중 (중국→한국)','부산/인천항 도착, 세관 통관 진행','통관 완료, 국내 배송 준비','거래처 납품 완료'];
 // oem_orders.status → 타임라인 단계 (received: 접수, 0~5: STAGES, settled: 정산완료)
 const OEM_STATUS = {
+  quoted:    { stage: -1, label: '견적서발행',  badge: 'b-sent' },
   received:  { stage: -1, label: '주문 접수',   badge: 'b-new' },
+  sample:    { stage: -1, label: '샘플진행중',  badge: 'b-prod' },
+  production:{ stage: -1, label: '메인진행중',  badge: 'b-prod' },
   factory:   { stage: 0,  label: '공장준비',    badge: 'b-prod' },
   china:     { stage: 1,  label: '중국물류',    badge: 'b-prod' },
   sea:       { stage: 2,  label: '한국운송중',  badge: 'b-transit' },
@@ -1137,6 +1153,60 @@ const OEM_STATUS = {
   cancelled: { stage: -1, label: '취소',        badge: 'b-done' }
 };
 function oemStatus(s) { return OEM_STATUS[s] || { stage: -1, label: s || '-', badge: 'b-draft' }; }
+
+// 주문관리 탭에서 쓰는 5단계 상태 (해운 세부 단계는 '출고중' 하나로 묶음)
+const OEM_FLOW = [
+  { key: 'quoted',     label: '견적서발행' },
+  { key: 'received',   label: '주문접수' },
+  { key: 'sample',     label: '샘플진행중' },
+  { key: 'production', label: '메인진행중' },
+  { key: 'shipping',   label: '출고중' },
+  { key: 'done',       label: '납품완료' }
+];
+const SHIPPING_STAGES = ['factory', 'china', 'sea', 'customs', 'cleared'];
+function oemFlowKey(status) {
+  if (SHIPPING_STAGES.includes(status)) return 'shipping';
+  if (status === 'delivered' || status === 'settled') return 'done';
+  return status; // received / sample / production / cancelled
+}
+// 선택한 5단계 → 저장할 실제 status 값 (이미 같은 묶음이면 세부 단계 유지)
+function oemFlowToStatus(key, current) {
+  if (key === 'shipping') return SHIPPING_STAGES.includes(current) ? current : 'factory';
+  if (key === 'done') return (current === 'delivered' || current === 'settled') ? current : 'delivered';
+  return key;
+}
+function oemStatusSelect(o) {
+  const cur = oemFlowKey(o.status);
+  const opts = OEM_FLOW.map(f => `<option value="${f.key}"${f.key === cur ? ' selected' : ''}>${f.label}</option>`).join('')
+    + (cur === 'cancelled' ? '<option value="cancelled" selected>취소</option>' : '');
+  const sub = SHIPPING_STAGES.includes(o.status) || o.status === 'settled' ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${esc(oemStatus(o.status).label)}</div>` : '';
+  return `<select class="oem-st oem-st-${cur}" data-id="${esc(o.id)}" onclick="event.stopPropagation()" onchange="changeOemFlow(this)">${opts}</select>${sub}`;
+}
+
+async function changeOemFlow(sel) {
+  const o = (DATA.oem?.orders || []).find(x => x.id === sel.dataset.id);
+  if (!o) return;
+  const prevKey = oemFlowKey(o.status);
+  const status = oemFlowToStatus(sel.value, o.status);
+  if (status === o.status) return;
+  sel.disabled = true;
+  try {
+    const res = await apiFetch('/oem/orders?id=' + encodeURIComponent(o.id), {
+      method: 'PATCH',
+      body: JSON.stringify({ status, date: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) })
+    });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) throw new Error(r.error || res.status);
+    await loadData('oem');
+    renderOem(DATA.oem);
+  } catch (e) {
+    alert('상태 변경 실패: ' + e.message);
+    sel.value = prevKey;
+  } finally {
+    sel.disabled = false;
+  }
+}
 
 function renderTL(id) {
   const body = document.getElementById('tl-body');
@@ -1149,23 +1219,39 @@ function renderTL(id) {
     return;
   }
   const st = oemStatus(o.status);
-  const cur = st.stage;
   document.getElementById('tl-title').textContent = `${o.order_no} · ${o.oem_clients?.name || ''}`;
   badge.className = 'badge ' + st.badge;
   badge.textContent = st.label;
   const ship = (o.oem_shipments || [])[0] || {};
+
+  // 전체 흐름: 주문관리 3단계 + 해운 6단계 (주문관리 상태와 같은 값을 쓰므로 자동 연동)
+  const steps = [
+    { key: 'quoted',     title: '견적서 발행',      desc: '견적서 전달, 거래처 확정 대기' },
+    { key: 'received',   title: '주문 접수',        desc: '거래처 주문 확정' },
+    { key: 'sample',     title: '샘플 진행',        desc: '샘플 제작 및 확인' },
+    { key: 'production', title: '메인(본생산) 진행', desc: '본 수량 생산 진행' },
+    ...STAGES.map((t, i) => ({ key: ['factory', 'china', 'sea', 'customs', 'cleared', 'delivered'][i], title: t, desc: STAGE_DESC[i] }))
+  ];
+  const keyIdx = { settled: steps.length - 1 };
+  steps.forEach((s, i) => { keyIdx[s.key] = i; });
+  const cur = o.status in keyIdx ? keyIdx[o.status] : -1;            // 취소 등은 -1
+  const finished = o.status === 'delivered' || o.status === 'settled';
   // 단계별 이력 테이블이 아직 없어 알 수 있는 날짜만 표시한다
-  const dates = [o.order_dt, ship.shipped_dt, null, null, null, o.delivered_dt || ship.delivered_dt];
-  body.innerHTML = STAGES.map((s, i) => {
-    const cls = i < cur || (i === cur && cur === 5) ? 'done' : i === cur ? 'active' : 'pending';
+  const dates = o.status === 'quoted'
+    ? { quoted: o.order_dt }
+    : { received: o.order_dt, china: ship.shipped_dt, delivered: o.delivered_dt || ship.delivered_dt };
+
+  body.innerHTML = steps.map((s, i) => {
+    const cls = i < cur || (i === cur && finished) ? 'done' : i === cur ? 'active' : 'pending';
+    const d = dates[s.key];
     return `<div class="tl-step ${cls}"><div class="tl-dot">${cls==='done'?'✓':cls==='active'?'▶':''}</div>
       <div class="tl-content">
-        <div class="tl-title">${s}</div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:3px">${STAGE_DESC[i]}</div>
+        <div class="tl-title">${s.title}</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:3px">${s.desc}</div>
         <div class="tl-meta">
-          ${dates[i] && i <= cur ? `<span>📅 ${esc(fmtDate(dates[i]))}</span>` : ''}
+          ${d && i <= cur ? `<span>📅 ${esc(fmtDate(d))}</span>` : ''}
           ${i === cur && ship.memo ? `<span>💬 ${esc(ship.memo)}</span>` : ''}
-          ${i === cur && cur < 5 && o.expected_dt ? `<span style="color:var(--amber);font-weight:600">⏱ 납품 예정: ${esc(fmtDate(o.expected_dt))}</span>` : ''}
+          ${i === cur && !finished && o.expected_dt ? `<span style="color:var(--amber);font-weight:600">⏱ 납품 예정: ${esc(fmtDate(o.expected_dt))}</span>` : ''}
         </div>
       </div></div>`;
   }).join('');
@@ -1452,7 +1538,7 @@ function renderOem(d) {
   const m = d.metrics;
   document.getElementById('oem-metrics').innerHTML =
     metric('이달 수주', man(m.month_amount), '', 'font-size:16px') +
-    metric('진행 중', m.in_progress + '건') +
+    metric('진행 중', m.in_progress + '건', m.quoted ? `견적 대기 ${m.quoted}건` : '') +
     metric('이달 납품 예정', m.due_this_month + '건') +
     metric('미정산', m.unsettled + '건', '납품완료·정산 전', 'color:var(--amber)');
 
@@ -1464,12 +1550,10 @@ function renderOem(d) {
     document.getElementById('oem-tbody').innerHTML = `<tr><td colspan="6">${emptyMsg('등록된 OEM 주문이 없습니다')}</td></tr>`;
   } else {
     document.getElementById('oem-cards').innerHTML = d.orders.map(o => {
-      const st = oemStatus(o.status);
-      return `<div class="order-card"><div class="order-card-top"><div><div class="order-no">${esc(o.order_no)}</div><div class="order-name">${esc(o.oem_clients?.name)}</div></div><span class="badge ${st.badge}">${esc(st.label)}</span></div><div class="order-product">${esc(desc(o))}</div><div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">납품 ${esc(due(o))}</span></div></div>`;
+      return `<div class="order-card"><div class="order-card-top"><div><div class="order-no">${esc(o.order_no)}</div><div class="order-name">${esc(o.oem_clients?.name)}</div></div><div style="text-align:right">${oemStatusSelect(o)}</div></div><div class="order-product">${esc(desc(o))}</div><div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">납품 ${esc(due(o))}</span></div></div>`;
     }).join('');
     document.getElementById('oem-tbody').innerHTML = d.orders.map(o => {
-      const st = oemStatus(o.status);
-      return `<tr><td style="font-family:monospace;font-size:11px">${esc(o.order_no)}</td><td>${esc(o.oem_clients?.name)}</td><td>${esc(desc(o))}</td><td>${won(o.total_amount)}</td><td>${esc(due(o))}</td><td><span class="badge ${st.badge}">${esc(st.label)}</span></td></tr>`;
+      return `<tr><td style="font-family:monospace;font-size:11px">${esc(o.order_no)}</td><td>${esc(o.oem_clients?.name)}</td><td>${esc(desc(o))}</td><td>${won(o.total_amount)}</td><td>${esc(due(o))}</td><td style="overflow:visible">${oemStatusSelect(o)}</td></tr>`;
     }).join('');
   }
 
@@ -1477,9 +1561,13 @@ function renderOem(d) {
   const prog = d.orders.filter(o => o.status !== 'cancelled')
     .sort((a, b) => (oemStatus(a.status).stage === 5) - (oemStatus(b.status).stage === 5));
   const opts = prog.map(o => `<option value="${esc(o.id)}">${esc(o.order_no)} · ${esc(o.oem_clients?.name)} · ${esc(desc(o))}</option>`).join('');
-  document.getElementById('prog-sel').innerHTML = opts;
+  const progSel = document.getElementById('prog-sel');
+  const keep = progSel.value;                                   // 보고 있던 주문 유지
+  progSel.innerHTML = opts;
   document.getElementById('su-order').innerHTML = opts;
-  renderTL(prog[0]?.id);
+  const showId = prog.some(o => o.id === keep) ? keep : prog[0]?.id;
+  if (showId) progSel.value = showId;
+  renderTL(showId);
 
   // 견적서
   document.getElementById('quote-list').innerHTML = d.quotes.length ? d.quotes.map(q => {
@@ -1837,6 +1925,7 @@ async function saveQuote(thenPdf) {
     await loadData('oem');
     renderOem(DATA.oem);
     switchMain('oem'); oemTab('quote');
+    if (r.warning) alert(r.warning);
     if (thenPdf) openQuote(r.id);
   } catch (e) {
     err.textContent = '서버에 연결할 수 없습니다.';

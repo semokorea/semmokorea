@@ -43,7 +43,9 @@ module.exports = async (req, res) => {
 //   eta → oem_orders.expected_dt, memo → oem_shipments.memo,
 //   중국 물류 이후 첫 진입 날짜 → oem_shipments.shipped_dt,
 //   납품완료 → delivered_dt, 정산완료 → settled_dt
-const STAGE_ORDER = ['received', 'factory', 'china', 'sea', 'customs', 'cleared', 'delivered', 'settled'];
+// 주문관리 상태: 견적서발행(quoted, 견적서 저장 시 자동 생성) → 주문접수(received) → 샘플진행중(sample)
+//               → 메인진행중(production) → 출고중(factory~cleared, 해운 5단계) → 납품완료(delivered/settled)
+const STAGE_ORDER = ['quoted', 'received', 'sample', 'production', 'factory', 'china', 'sea', 'customs', 'cleared', 'delivered', 'settled'];
 const VALID_STATUS = [...STAGE_ORDER, 'cancelled'];
 const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
@@ -62,7 +64,7 @@ async function updateStage(req, res) {
   if (memo && memo.length > 500) return res.status(400).json({ error: '메모는 500자 이하로 입력하세요.' });
 
   const { data: order, error } = await supabase
-    .from('oem_orders').select('id, delivered_dt').eq('id', id).maybeSingle();
+    .from('oem_orders').select('id, status, delivered_dt').eq('id', id).maybeSingle();
   if (error) return res.status(500).json({ error: error.message });
   if (!order) return res.status(404).json({ error: '주문을 찾을 수 없습니다.' });
 
@@ -74,10 +76,20 @@ async function updateStage(req, res) {
   // 이전 단계로 되돌리면 완료 날짜를 지운다
   if (idx >= 0 && idx < STAGE_ORDER.indexOf('delivered')) { upd.delivered_dt = null; upd.settled_dt = null; }
   if (status === 'delivered') upd.settled_dt = null;
+  // 견적서발행 → 실제 진행으로 바뀌는 순간: 주문일을 그날로, 연결된 견적서는 '확정'
+  const becameOrder = order.status === 'quoted' && status !== 'quoted' && status !== 'cancelled';
+  if (becameOrder) upd.order_dt = date;
 
   const { data: updated, error: upErr } = await supabase
     .from('oem_orders').update(upd).eq('id', id).select().single();
   if (upErr) return res.status(500).json({ error: upErr.message });
+
+  if (becameOrder) {
+    const { error: qErr } = await supabase.from('oem_quotations')
+      .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
+      .eq('oem_order_id', id);
+    if (qErr) console.error('[OEM] 견적서 확정 반영 실패:', qErr.message);
+  }
 
   // 배송 정보(oem_shipments)는 주문당 한 줄로 유지
   const { data: ships, error: shErr } = await supabase

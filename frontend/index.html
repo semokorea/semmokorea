@@ -228,6 +228,15 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 .settle-btn.no  { background: #fff7ed; color: #b45309; border-color: #fdba74; }
 .settle-btn.yes { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
 .settle-btn:disabled { opacity: .5; cursor: wait; }
+.qna-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #dc2626; color: #fff; font-size: 10px; font-weight: 700; margin-left: 4px; }
+.qna-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); }
+.qna-card.unanswered { border-left: 3px solid var(--amber); }
+.qna-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; align-items: flex-start; flex-wrap: wrap; }
+.qna-meta { font-size: 11px; color: var(--text3); }
+.qna-product { font-size: 12px; font-weight: 600; color: var(--green); margin-bottom: 6px; }
+.qna-q { font-size: 13px; color: var(--text); white-space: pre-wrap; line-height: 1.5; margin-bottom: 8px; }
+.qna-a { background: #f0f9ff; border-left: 3px solid #0ea5e9; padding: 8px 10px; border-radius: 6px; font-size: 12px; color: #0c4a6e; white-space: pre-wrap; line-height: 1.5; }
+.qna-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
 .metric-click { cursor: pointer; transition: box-shadow .12s, border-color .12s; }
 .metric-click:hover { border-color: #fdba74; }
 .metric-click.on { border-color: #f59e0b; box-shadow: 0 0 0 2px #fde68a; }
@@ -444,6 +453,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
   <div class="subtab-scroll" id="shop-subtabs">
     <button class="stab on" onclick="shopTab('order')">주문</button>
     <button class="stab" onclick="shopTab('ship')">배송처리</button>
+    <button class="stab" onclick="shopTab('qna')">문의 <span id="qna-badge" class="qna-badge" style="display:none">0</span></button>
     <button class="stab" onclick="shopTab('invoice')">송장출력</button>
     <button class="stab" onclick="shopTab('stock')">재고</button>
     <button class="stab" onclick="shopTab('sales')">매출</button>
@@ -540,6 +550,22 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
             </table>
           </div>
         </div>
+      </div>
+
+      <!-- 상품 문의 (Q&A) -->
+      <div class="sub-page" id="sp-qna">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:16px;font-weight:700">상품 문의 <span id="qna-stat" style="font-weight:400;color:var(--text3);font-size:12px"></span></div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="qna-days" title="조회 기간" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--white)" onchange="loadQna().then(()=>renderQna(DATA.qna))">
+              <option value="7">최근 7일</option><option value="14" selected>14일</option><option value="30">30일</option><option value="60">60일</option>
+            </select>
+            <button class="fpill on" id="qna-filter-un" onclick="toggleQnaFilter()">미답변만</button>
+            <button class="btn btn-sm" id="qna-sync-btn" onclick="runQnaSync()">문의 수집</button>
+          </div>
+        </div>
+        <div id="qna-sync-status" style="font-size:11px;color:var(--text2);margin:-6px 0 10px"></div>
+        <div id="qna-list" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
 
       <!-- 송장 출력 -->
@@ -806,6 +832,33 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 </div>
 
 <!-- 비밀번호 변경 -->
+<!-- 상품 문의 답변 모달 -->
+<div class="modal-back" id="m-qna" onclick="if(event.target===this)closeModal('m-qna')">
+  <div class="modal-sheet modal-pc">
+    <div class="modal-drag"></div>
+    <div class="modal-inner">
+      <div class="modal-title">상품 문의 답변</div>
+      <div id="qna-detail" style="margin-bottom:12px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px;line-height:1.5"></div>
+      <div class="form-field">
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>답변 내용 (1,000자 이하)</span>
+          <span id="qna-count" style="font-size:11px;color:var(--text3)">0 / 1000</span>
+        </label>
+        <textarea id="qna-answer" rows="6" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:14px;resize:vertical;box-sizing:border-box" maxlength="1000" oninput="document.getElementById('qna-count').textContent=this.value.length+' / 1000'" placeholder="고객에게 전달될 답변을 입력하세요. (네이버 스마트스토어에 바로 반영됩니다)"></textarea>
+      </div>
+      <div style="font-size:11px;color:var(--text3);line-height:1.5;margin-top:-6px">
+        · 답변은 네이버 상품 Q&amp;A에 즉시 게시됩니다<br>
+        · API로 등록한 답변만 API로 수정 가능 (스마트스토어센터에서 쓴 답변은 추가 답변만 가능)
+      </div>
+      <div id="qna-err" style="font-size:12px;color:var(--red);min-height:16px;margin-top:8px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('m-qna')">취소</button>
+      <button class="btn btn-green" id="qna-save-btn" onclick="saveQnaAnswer()">답변 전송</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="m-password" onclick="if(event.target===this)closeModal('m-password')">
   <div class="modal-sheet">
     <div class="modal-drag"></div>
@@ -1117,10 +1170,11 @@ function switchMain(tab) {
 }
 
 // ── 쇼핑몰 서브탭 ──
-const SHOP_TABS = ['order','ship','invoice','stock','sales'];
+const SHOP_TABS = ['order','ship','qna','invoice','stock','sales'];
 function shopTab(t) {
   document.querySelectorAll('#shop-subtabs .stab').forEach((el,i) => el.classList.toggle('on', SHOP_TABS[i]===t));
   SHOP_TABS.forEach(k => { const el=document.getElementById('sp-'+k); if(el) el.classList.toggle('active', k===t); });
+  if (t === 'qna') loadQna().then(() => renderQna(DATA.qna));
 }
 
 // ── OEM 서브탭 ──
@@ -1359,7 +1413,7 @@ function renderTL(id) {
 }
 
 // ══════════ 실데이터 연동 (/api/data) ══════════
-const DATA = { shop: null, stock: null, sales: null, oem: null };
+const DATA = { shop: null, stock: null, sales: null, oem: null, qna: null };
 const CH_CLS = { naver: 'ch-n', coupang: 'ch-c', ably: 'ch-a', zigzag: 'ch-z' };
 const ORDER_STATUS = {
   new:       ['신규', 'b-new'],
@@ -1423,6 +1477,8 @@ async function loadAll() {
   if (!curUser) return; // 로그아웃됨
   renderShop(shop); renderStock(stock); renderSales(sales); renderOem(oem);
   loadSyncStatus();
+  // 문의 미답변 뱃지 갱신 (가볍게 백그라운드로)
+  loadQna().then(() => { if (curUser) renderQna(DATA.qna); }).catch(() => {});
   sec = 0;
 }
 
@@ -1742,6 +1798,138 @@ async function runOrderSync() {
     btn.disabled = false;
     btn.textContent = '주문 수집';
     loadSyncStatus();
+  }
+}
+
+// ══════════ 상품 Q&A (네이버 상품문의) ══════════
+let qnaOnlyUnanswered = true;
+let qnaCurrent = null;   // 답변 중인 문의 row
+
+async function loadQna() {
+  const days = parseInt(document.getElementById('qna-days').value, 10) || 14;
+  const res = await apiFetch(`/data?type=qna&days=${days}${qnaOnlyUnanswered ? '&onlyUnanswered=1' : ''}`);
+  if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return null; }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) { DATA.qna = { _error: body.error || res.status }; return DATA.qna; }
+  DATA.qna = body;
+  updateQnaBadge();
+  return body;
+}
+
+function updateQnaBadge() {
+  const n = DATA.qna?.metrics?.unanswered_total || 0;
+  const badge = document.getElementById('qna-badge');
+  if (!badge) return;
+  if (n > 0) { badge.textContent = n > 99 ? '99+' : String(n); badge.style.display = 'inline-flex'; }
+  else badge.style.display = 'none';
+}
+
+function toggleQnaFilter() {
+  qnaOnlyUnanswered = !qnaOnlyUnanswered;
+  document.getElementById('qna-filter-un').classList.toggle('on', qnaOnlyUnanswered);
+  loadQna().then(() => renderQna(DATA.qna));
+}
+
+function renderQna(d) {
+  const list = document.getElementById('qna-list');
+  const stat = document.getElementById('qna-stat');
+  if (!d || d._error) { list.innerHTML = emptyMsg('불러오기 실패: ' + (d?._error || '')); stat.textContent = ''; return; }
+  const m = d.metrics || {};
+  stat.textContent = `· 미답변 ${m.unanswered_total || 0}건 · 조회 ${m.total}건`;
+  const rows = d.qnas || [];
+  if (!rows.length) { list.innerHTML = emptyMsg(qnaOnlyUnanswered ? '미답변 문의가 없습니다' : '문의가 없습니다'); return; }
+
+  list.innerHTML = rows.map(q => {
+    const answered = !!q.answered_at;
+    const prod = q.product_name ? `<div class="qna-product">${esc(q.product_name)}</div>` : '';
+    const title = q.question_title ? `<div style="font-weight:700;margin-bottom:4px">${esc(q.question_title)}</div>` : '';
+    const secret = q.is_secret ? '<span class="badge b-wait" style="margin-left:6px">비밀</span>' : '';
+    const ch = chTag(q.channels);
+    const ans = answered
+      ? `<div class="qna-a"><div style="font-size:10px;color:#64748b;margin-bottom:4px">답변 ${esc((q.answered_at || '').slice(5, 16).replace('T', ' '))}${q.answer_source === 'api' ? ' · 어드민' : q.answer_source === 'smartstore' ? ' · 스마트스토어센터' : ''}</div>${esc(q.answer_content || '')}</div>`
+      : '';
+    const btn = answered
+      ? `<button class="btn btn-sm btn-outline" onclick="openQnaAnswer(${q.id}, true)">답변 수정</button>`
+      : `<button class="btn btn-sm btn-green" onclick="openQnaAnswer(${q.id}, false)">답변 작성</button>`;
+    return `<div class="qna-card ${answered ? '' : 'unanswered'}">
+      <div class="qna-head">
+        <div style="flex:1;min-width:0">
+          ${prod}
+          ${title}
+          <div class="qna-meta">${ch} · ${esc(q.questioner_nickname || '익명')} · ${esc((q.asked_at || '').slice(5, 16).replace('T', ' '))}${secret}</div>
+        </div>
+      </div>
+      <div class="qna-q">${esc(q.question_content || '')}</div>
+      ${ans}
+      <div class="qna-actions">${btn}</div>
+    </div>`;
+  }).join('');
+}
+
+function openQnaAnswer(id, isEdit) {
+  const q = (DATA.qna?.qnas || []).find(x => x.id === id);
+  if (!q) return;
+  qnaCurrent = q;
+  const info = `
+    <div style="font-weight:700;margin-bottom:4px">${esc(q.product_name || '')}${q.question_title ? ' — ' + esc(q.question_title) : ''}</div>
+    <div style="color:var(--text3);font-size:11px;margin-bottom:6px">${esc(q.questioner_nickname || '익명')} · ${esc((q.asked_at || '').slice(0, 16).replace('T', ' '))}</div>
+    <div style="white-space:pre-wrap">${esc(q.question_content || '')}</div>`;
+  document.getElementById('qna-detail').innerHTML = info;
+  const ta = document.getElementById('qna-answer');
+  ta.value = isEdit && q.answer_source === 'api' ? (q.answer_content || '') : '';
+  document.getElementById('qna-count').textContent = ta.value.length + ' / 1000';
+  document.getElementById('qna-err').textContent = isEdit && q.answer_source === 'smartstore'
+    ? '⚠️ 스마트스토어센터에서 쓴 답변은 수정되지 않고 추가 답변으로 등록됩니다.' : '';
+  openModal('m-qna');
+  setTimeout(() => ta.focus(), 100);
+}
+
+async function saveQnaAnswer() {
+  if (!qnaCurrent) return;
+  const content = document.getElementById('qna-answer').value.trim();
+  const err = document.getElementById('qna-err');
+  const btn = document.getElementById('qna-save-btn');
+  if (!content) { err.textContent = '답변 내용을 입력하세요.'; return; }
+  if (content.length > 1000) { err.textContent = '1,000자를 초과할 수 없습니다.'; return; }
+  err.textContent = '';
+  btn.disabled = true;
+  btn.textContent = '전송 중…';
+  try {
+    const res = await apiFetch('/data?action=answer_qna', { method: 'POST', body: JSON.stringify({ id: qnaCurrent.id, commentContent: content }) });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { closeModal('m-qna'); alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) throw new Error(r.error || res.status);
+    closeModal('m-qna');
+    await loadQna();
+    renderQna(DATA.qna);
+  } catch (e) {
+    err.textContent = '답변 전송 실패: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '답변 전송';
+  }
+}
+
+async function runQnaSync() {
+  const btn = document.getElementById('qna-sync-btn');
+  const msg = document.getElementById('qna-sync-status');
+  btn.disabled = true;
+  btn.textContent = '수집 중…';
+  msg.textContent = '네이버에서 문의 목록을 가져오는 중…';
+  try {
+    const days = parseInt(document.getElementById('qna-days').value, 10) || 14;
+    const res = await apiFetch('/data?action=collect_qna', { method: 'POST', body: JSON.stringify({ days }) });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) throw new Error(r.error || res.status);
+    msg.textContent = r.message || `저장 ${r.synced}건`;
+    await loadQna();
+    renderQna(DATA.qna);
+  } catch (e) {
+    msg.textContent = '문의 수집 실패: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '문의 수집';
   }
 }
 

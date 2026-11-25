@@ -170,7 +170,9 @@ async function getSales() {
 
 // ── OEM: 주문 + 견적서 + 거래처 ──
 async function getOem() {
-  const monthStart = kstDate().slice(0, 8) + '01';
+  const today     = kstDate();
+  const monthStart = today.slice(0, 8) + '01';
+  const yearStart  = today.slice(0, 4) + '-01-01';
   const [orders, quotes, clients] = await Promise.all([
     supabase
       .from('oem_orders')
@@ -205,9 +207,14 @@ async function getOem() {
   // 견적서발행(quoted)은 아직 확정 주문이 아니므로 수주·진행 집계에서 뺀다
   const NOT_ACTIVE = ['quoted', 'delivered', 'settled', 'cancelled'];
   const monthAmount = {};
+  const yearAmount  = {};
   for (const o of orderRows) {
     if (o.status === 'quoted' || o.status === 'cancelled') continue;
-    if (o.order_dt && o.order_dt >= monthStart) {
+    if (!o.order_dt) continue;
+    if (o.order_dt >= yearStart) {
+      yearAmount[o.client_id] = (yearAmount[o.client_id] || 0) + (o.total_amount || 0);
+    }
+    if (o.order_dt >= monthStart) {
       monthAmount[o.client_id] = (monthAmount[o.client_id] || 0) + (o.total_amount || 0);
     }
   }
@@ -215,8 +222,10 @@ async function getOem() {
   return {
     orders:  orderRows,
     quotes:  quotes.data || [],
-    clients: (clients.data || []).map(c => ({ ...c, month_amount: monthAmount[c.id] || 0 })),
+    clients: (clients.data || []).map(c => ({ ...c, month_amount: monthAmount[c.id] || 0, year_amount: yearAmount[c.id] || 0 })),
     metrics: {
+      year:         Number(yearStart.slice(0, 4)),
+      year_amount:  Object.values(yearAmount).reduce((s, v) => s + v, 0),
       month_amount: Object.values(monthAmount).reduce((s, v) => s + v, 0),
       in_progress:  orderRows.filter(o => !NOT_ACTIVE.includes(o.status)).length,
       quoted:       orderRows.filter(o => o.status === 'quoted').length,

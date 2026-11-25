@@ -4,8 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="세모 어드민">
 <meta name="theme-color" content="#1A6B3C">
+<!-- 홈 화면 앱 아이콘 -->
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="/icons/favicon.png">
 <title>세모코리아 어드민</title>
 <style>
 :root {
@@ -206,6 +212,13 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .fpill { padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--white); color: var(--gray); font-family: inherit; white-space: nowrap; transition: all .12s; }
 .fpill.on { background: var(--green); color: #fff; border-color: var(--green); }
+.settle-btn { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; font-family: inherit; cursor: pointer; border: 1px solid; white-space: nowrap; }
+.settle-btn.no  { background: #fff7ed; color: #b45309; border-color: #fdba74; }
+.settle-btn.yes { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+.settle-btn:disabled { opacity: .5; cursor: wait; }
+.metric-click { cursor: pointer; transition: box-shadow .12s, border-color .12s; }
+.metric-click:hover { border-color: #fdba74; }
+.metric-click.on { border-color: #f59e0b; box-shadow: 0 0 0 2px #fde68a; }
 .oem-no { color: var(--green); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
 .oem-no:hover { background: var(--green-l); }
 /* OEM 주문 상태 선택 */
@@ -623,7 +636,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
           <!-- PC: 테이블형 -->
           <div class="pc-only">
             <table class="tbl">
-              <thead><tr><th style="width:120px">주문번호</th><th style="width:90px">거래처</th><th>내용</th><th style="width:90px">금액</th><th style="width:80px">납품예정</th><th style="width:120px">상태</th></tr></thead>
+              <thead><tr><th style="width:120px">주문번호</th><th style="width:90px">거래처</th><th>내용</th><th style="width:90px">금액</th><th style="width:80px">납품예정</th><th style="width:120px">상태</th><th style="width:84px">정산</th></tr></thead>
               <tbody id="oem-tbody"></tbody>
             </table>
           </div>
@@ -1566,20 +1579,24 @@ function renderOem(d) {
     metric('이달 수주', man(m.month_amount), '', 'font-size:16px') +
     metric('진행 중', m.in_progress + '건', m.quoted ? `견적 대기 ${m.quoted}건` : '') +
     metric('이달 납품 예정', m.due_this_month + '건') +
-    metric('미정산', m.unsettled + '건', '납품완료·정산 전', 'color:var(--amber)');
+    `<div class="metric metric-click${oemUnsettledOnly ? ' on' : ''}" onclick="toggleUnsettledFilter()" title="눌러서 미정산 주문만 보기">` +
+      `<div class="metric-label">미정산</div><div class="metric-val" style="color:var(--amber)">${m.unsettled}건</div>` +
+      `<div class="metric-sub">${oemUnsettledOnly ? '미정산만 보는 중 · 다시 누르면 전체' : '납품완료·정산 전 · 눌러서 보기'}</div></div>`;
 
-  // 주문 목록
+  // 주문 목록 (미정산 카드를 누르면 미정산만)
   const desc = o => o.title || itemsText(o.oem_order_items);
   const due = o => ['delivered', 'settled'].includes(o.status) ? '완료' : (o.expected_dt ? fmtDate(o.expected_dt).slice(5).replace('-', '/') : '-');
-  if (!d.orders.length) {
-    document.getElementById('oem-cards').innerHTML = emptyMsg('등록된 OEM 주문이 없습니다');
-    document.getElementById('oem-tbody').innerHTML = `<tr><td colspan="6">${emptyMsg('등록된 OEM 주문이 없습니다')}</td></tr>`;
+  const list = oemUnsettledOnly ? d.orders.filter(o => o.status === 'delivered') : d.orders;
+  if (!list.length) {
+    const msg = oemUnsettledOnly ? '미정산 주문이 없습니다' : '등록된 OEM 주문이 없습니다';
+    document.getElementById('oem-cards').innerHTML = emptyMsg(msg);
+    document.getElementById('oem-tbody').innerHTML = `<tr><td colspan="7">${emptyMsg(msg)}</td></tr>`;
   } else {
-    document.getElementById('oem-cards').innerHTML = d.orders.map(o => {
-      return `<div class="order-card"><div class="order-card-top"><div><div class="order-no"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></div><div class="order-name">${esc(o.oem_clients?.name)}</div></div><div style="text-align:right">${oemStatusSelect(o)}</div></div><div class="order-product">${esc(desc(o))}</div><div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">납품 ${esc(due(o))}</span></div></div>`;
+    document.getElementById('oem-cards').innerHTML = list.map(o => {
+      return `<div class="order-card"><div class="order-card-top"><div><div class="order-no"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></div><div class="order-name">${esc(o.oem_clients?.name)}</div></div><div style="text-align:right">${oemStatusSelect(o)}<div style="margin-top:4px">${settleCell(o)}</div></div></div><div class="order-product">${esc(desc(o))}</div><div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">납품 ${esc(due(o))}</span></div></div>`;
     }).join('');
-    document.getElementById('oem-tbody').innerHTML = d.orders.map(o => {
-      return `<tr><td style="font-family:monospace;font-size:11px"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></td><td>${esc(o.oem_clients?.name)}</td><td>${esc(desc(o))}</td><td>${won(o.total_amount)}</td><td>${esc(due(o))}</td><td style="overflow:visible">${oemStatusSelect(o)}</td></tr>`;
+    document.getElementById('oem-tbody').innerHTML = list.map(o => {
+      return `<tr><td style="font-family:monospace;font-size:11px"><a class="oem-no" onclick="openOemDetail('${esc(o.id)}')">${esc(o.order_no)}</a></td><td>${esc(o.oem_clients?.name)}</td><td>${esc(desc(o))}</td><td>${won(o.total_amount)}</td><td>${esc(due(o))}</td><td style="overflow:visible">${oemStatusSelect(o)}</td><td>${settleCell(o)}</td></tr>`;
     }).join('');
   }
 
@@ -2015,6 +2032,47 @@ async function saveQuote(thenPdf) {
   }
 }
 
+// ── OEM 정산 (납품완료 주문만 정산 가능) ──
+let oemUnsettledOnly = false;
+
+function settleCell(o) {
+  if (o.status === 'delivered') return `<button class="settle-btn no" onclick="event.stopPropagation();toggleSettle('${esc(o.id)}', this)" title="눌러서 정산완료로 변경">미정산</button>`;
+  if (o.status === 'settled')   return `<button class="settle-btn yes" onclick="event.stopPropagation();toggleSettle('${esc(o.id)}', this)" title="${o.settled_dt ? '정산일 ' + esc(fmtDate(o.settled_dt)) + ' · ' : ''}눌러서 미정산으로 되돌리기">정산완료</button>`;
+  return `<span style="color:var(--text3)" title="납품완료 후 정산할 수 있어요">-</span>`;
+}
+
+function toggleUnsettledFilter() {
+  oemUnsettledOnly = !oemUnsettledOnly;
+  if (oemUnsettledOnly) oemTab('order');
+  renderOem(DATA.oem);
+}
+
+async function toggleSettle(id, btn) {
+  const o = (DATA.oem?.orders || []).find(x => x.id === id);
+  if (!o) return;
+  const toSettled = o.status === 'delivered';
+  const amt = won((o.total_amount || 0) + (o.vat_amount || 0) + (o.shipping_fee || 0));
+  const ok = toSettled
+    ? confirm(`${o.order_no} (${o.oem_clients?.name || ''}, ${amt}원)\n정산완료로 변경할까요?`)
+    : confirm(`${o.order_no}를 미정산으로 되돌릴까요?`);
+  if (!ok) return;
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/oem/orders?id=' + encodeURIComponent(id), {
+      method: 'PATCH',
+      body: JSON.stringify({ status: toSettled ? 'settled' : 'delivered', date: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) })
+    });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) throw new Error(r.error || res.status);
+    await loadData('oem');
+    renderOem(DATA.oem);
+  } catch (e) {
+    alert('정산 변경 실패: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
 // ── OEM 주문 상세 (주문번호 클릭): 품목별 수량·단가·금액 ──
 function openOemDetail(id) {
   const o = (DATA.oem?.orders || []).find(x => x.id === id);
@@ -2027,7 +2085,8 @@ function openOemDetail(id) {
     info('상태', esc(flow + sub)) +
     info('주문일', esc(fmtDate(o.order_dt) || '-')) +
     info('납품예정', esc(fmtDate(o.expected_dt) || '-')) +
-    info('납품일', esc(fmtDate(o.delivered_dt) || '-'));
+    info('납품일', esc(fmtDate(o.delivered_dt) || '-')) +
+    info('정산', o.status === 'settled' ? `정산완료${o.settled_dt ? ' (' + esc(fmtDate(o.settled_dt)) + ')' : ''}` : o.status === 'delivered' ? '<span style="color:#b45309">미정산</span>' : '-');
   const items = o.oem_order_items || [];
   document.getElementById('od-items').innerHTML = items.length ? items.map((it, i) => `<tr>
       <td style="color:var(--text3)">${i + 1}</td>

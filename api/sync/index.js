@@ -31,10 +31,13 @@ module.exports = async (req, res) => {
   const channels = requested.filter(c => enabled.includes(c));
   if (!channels.length) return res.status(400).json({ error: '연동된 쇼핑몰이 없습니다.', enabled });
 
+  // days: 며칠 치를 가져올지 (1~30, 기본 1일)
+  const days = Math.max(1, Math.min(30, parseInt(req.body?.days, 10) || 1));
+
   const results = {};
   await Promise.allSettled(channels.map(async c => {
     try {
-      results[c] = await syncMap[c].syncOrders();
+      results[c] = await syncMap[c].syncOrders({ days });
     } catch (e) {
       results[c] = { synced: 0, errors: 1, message: e.message };
     }

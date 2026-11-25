@@ -417,6 +417,9 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="font-size:16px;font-weight:700">오늘 현황</div>
           <div style="display:flex;gap:6px">
+            <select id="sync-days" title="수집 기간" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--white)">
+              <option value="1">최근 1일</option><option value="3">3일</option><option value="7">7일</option><option value="14">14일</option><option value="30">30일</option>
+            </select>
             <button class="btn btn-sm" id="sync-btn" onclick="runOrderSync()">주문 수집</button>
             <button class="btn btn-sm" onclick="shopTab('invoice')">송장출력</button>
             <button class="btn btn-sm btn-green" onclick="shopTab('ship')">배송처리</button>
@@ -1450,7 +1453,8 @@ async function runOrderSync() {
   btn.disabled = true;
   btn.textContent = '수집 중…';
   try {
-    const res = await apiFetch('/sync', { method: 'POST', body: JSON.stringify({}) });
+    const days = parseInt(document.getElementById('sync-days').value, 10) || 1;
+    const res = await apiFetch('/sync', { method: 'POST', body: JSON.stringify({ days }) });
     const r = await res.json().catch(() => ({}));
     if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
     if (!res.ok) throw new Error(r.error || res.status);

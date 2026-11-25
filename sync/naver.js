@@ -103,33 +103,51 @@ async function fetchDetails(ids) {
 }
 
 // ── 주문 수집 ──
-// hours: 몇 시간 전부터 가져올지 (최대 24, API 제한)
-async function syncOrders({ hours = 24 } = {}) {
-  const channelId = await getChannelId('naver');
-  const to = new Date(Date.now() - 5000);                     // 문서 권장: 현재보다 5초 이전
-  const from = new Date(to.getTime() - Math.min(24, hours) * 3600 * 1000 + 1000);
+// days: 며칠 전까지 거슬러 갈지 (1~30). API는 한 번에 24시간까지만 조회되므로
+//       최근 24시간부터 하루씩 과거로 나눠 조회한다.
+// 서버 함수 실행 시간(60초) 안에 끝나도록 시간 예산을 넘기면 멈추고 어디까지 했는지 알려준다.
+const TIME_BUDGET_MS = 45000;
 
-  let synced = 0, errors = 0, message = '';
+async function syncOrders({ days = 1 } = {}) {
+  const started = Date.now();
+  const channelId = await getChannelId('naver');
+  const nDays = Math.max(1, Math.min(30, Math.floor(Number(days) || 1)));
+  const DAY = 24 * 3600 * 1000;
+  const end = Date.now() - 5000;                              // 문서 권장: 현재보다 5초 이전
+
+  let synced = 0, errors = 0, changed = 0, doneDays = 0, stopped = false, errMsg = '';
   try {
-    const ids = await fetchChangedIds(from, to);
-    const details = ids.length ? await fetchDetails(ids) : [];
-    for (const d of details) {
-      try {
-        const row = await upsertOrder(mapNaverOrder(channelId, d));
-        await replaceItems(row.id, d);
-        synced++;
-      } catch (e) {
-        console.error('[NAVER] 저장 실패:', e.message);
-        errors++;
-        message = message || `저장 실패: ${e.message}`;
+    for (let i = 0; i < nDays; i++) {
+      if (Date.now() - started > TIME_BUDGET_MS) { stopped = true; break; }
+      const to = new Date(end - i * DAY);
+      const from = new Date(end - (i + 1) * DAY + 1);         // 구간끼리 겹치지 않게 1ms 띄움
+      const ids = await fetchChangedIds(from, to);
+      changed += ids.length;
+      const details = ids.length ? await fetchDetails(ids) : [];
+      for (const d of details) {
+        if (Date.now() - started > TIME_BUDGET_MS + 10000) { stopped = true; break; }
+        try {
+          const row = await upsertOrder(mapNaverOrder(channelId, d));
+          await replaceItems(row.id, d);
+          synced++;
+        } catch (e) {
+          console.error('[NAVER] 저장 실패:', e.message);
+          errors++;
+          errMsg = errMsg || `저장 실패: ${e.message}`;
+        }
       }
+      if (stopped) break;
+      doneDays++;
     }
-    if (!message) message = `변경 ${ids.length}건 / 상세 ${details.length}건`;
   } catch (e) {
-    message = `API 오류: ${errText(e)}`;
-    console.error('[NAVER]', message);
+    errMsg = `API 오류: ${errText(e)}`;
+    console.error('[NAVER]', errMsg);
     errors++;
   }
+
+  let message = `${doneDays}/${nDays}일 조회 · 변경 ${changed}건 · 저장 ${synced}건`;
+  if (stopped) message += ` (시간 제한으로 ${doneDays}일까지만 처리 — 다시 누르면 이어서 확인)`;
+  if (errMsg) message += ` · ${errMsg}`;
 
   await logSync('naver', { synced, errors, message });
   return { synced, errors, message };

@@ -1,5 +1,6 @@
 // api/oem/orders.js
-// POST /api/oem/orders — OEM 주문 등록
+// POST  /api/oem/orders        — OEM 주문 등록
+// PATCH /api/oem/orders?id=... — 진행 단계 업데이트 (아래 updateStage 참고)
 // body: { client_id, title, expected_dt, quantity, unit_price, memo }
 // 주문번호는 OEM-YYMM-NNN (KST 기준 월별 일련번호), 상태는 'received'(주문 접수)로 시작.
 // total_amount = 공급가액(수량×단가), vat_amount = 10%
@@ -30,9 +31,77 @@ async function nextOrderNo(prefix) {
 }
 
 module.exports = async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
   if (!verifyRequest(req)) return res.status(401).json({ error: '인증 필요' });
+  if (req.method === 'POST') return createOrder(req, res);
+  if (req.method === 'PATCH') return updateStage(req, res);
+  return res.status(405).json({ error: 'Method Not Allowed' });
+};
 
+// ── PATCH /api/oem/orders?id=... — 진행 단계 업데이트 ──
+// body: { status, date, eta, memo }
+// 단계별 이력 테이블이 없어서, 기존 컬럼에 담을 수 있는 것만 저장한다:
+//   eta → oem_orders.expected_dt, memo → oem_shipments.memo,
+//   중국 물류 이후 첫 진입 날짜 → oem_shipments.shipped_dt,
+//   납품완료 → delivered_dt, 정산완료 → settled_dt
+const STAGE_ORDER = ['received', 'factory', 'china', 'sea', 'customs', 'cleared', 'delivered', 'settled'];
+const VALID_STATUS = [...STAGE_ORDER, 'cancelled'];
+const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+async function updateStage(req, res) {
+  const id = req.query.id;
+  const b = req.body || {};
+  const status = String(b.status || '');
+  const date = b.date ? String(b.date).slice(0, 10) : kstToday();
+  const eta = b.eta ? String(b.eta).slice(0, 10) : null;
+  const memo = b.memo === undefined ? undefined : (String(b.memo || '').trim() || null);
+
+  if (!id) return res.status(400).json({ error: 'id가 필요합니다.' });
+  if (!VALID_STATUS.includes(status)) return res.status(400).json({ error: '단계가 올바르지 않습니다.' });
+  if (!isDate(date)) return res.status(400).json({ error: '날짜가 올바르지 않습니다.' });
+  if (eta && !isDate(eta)) return res.status(400).json({ error: '예상 도착일이 올바르지 않습니다.' });
+  if (memo && memo.length > 500) return res.status(400).json({ error: '메모는 500자 이하로 입력하세요.' });
+
+  const { data: order, error } = await supabase
+    .from('oem_orders').select('id, delivered_dt').eq('id', id).maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+  if (!order) return res.status(404).json({ error: '주문을 찾을 수 없습니다.' });
+
+  const idx = STAGE_ORDER.indexOf(status);
+  const upd = { status };
+  if (eta) upd.expected_dt = eta;
+  if (status === 'delivered') upd.delivered_dt = date;
+  if (status === 'settled') { upd.settled_dt = date; if (!order.delivered_dt) upd.delivered_dt = date; }
+  // 이전 단계로 되돌리면 완료 날짜를 지운다
+  if (idx >= 0 && idx < STAGE_ORDER.indexOf('delivered')) { upd.delivered_dt = null; upd.settled_dt = null; }
+  if (status === 'delivered') upd.settled_dt = null;
+
+  const { data: updated, error: upErr } = await supabase
+    .from('oem_orders').update(upd).eq('id', id).select().single();
+  if (upErr) return res.status(500).json({ error: upErr.message });
+
+  // 배송 정보(oem_shipments)는 주문당 한 줄로 유지
+  const { data: ships, error: shErr } = await supabase
+    .from('oem_shipments').select('id, shipped_dt').eq('oem_order_id', id).limit(1);
+  if (shErr) return res.status(500).json({ error: shErr.message });
+  const ship = ships && ships[0];
+  const shipUpd = {};
+  if (memo !== undefined) shipUpd.memo = memo;
+  if (idx >= STAGE_ORDER.indexOf('china') && !(ship && ship.shipped_dt)) shipUpd.shipped_dt = date;
+  if (status === 'delivered' || status === 'settled') shipUpd.delivered_dt = upd.delivered_dt || order.delivered_dt;
+  else if (upd.delivered_dt === null && ship && ship.delivered_dt) shipUpd.delivered_dt = null;
+
+  if (Object.keys(shipUpd).length) {
+    const { error: e2 } = ship
+      ? await supabase.from('oem_shipments').update(shipUpd).eq('id', ship.id)
+      : await supabase.from('oem_shipments').insert({ oem_order_id: id, ...shipUpd });
+    if (e2) return res.status(500).json({ error: e2.message });
+  }
+
+  return res.status(200).json(updated);
+}
+
+// ── POST: 주문 등록 ──
+async function createOrder(req, res) {
   const b = req.body || {};
   const title = String(b.title || '').trim();
   const quantity = toInt(b.quantity);
@@ -96,4 +165,4 @@ module.exports = async (req, res) => {
   }
 
   return res.status(201).json(order);
-};
+}

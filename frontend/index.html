@@ -601,7 +601,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <div class="sub-page" id="op-progress">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="font-size:16px;font-weight:700">해운 진행상황</div>
-          <button class="btn btn-sm btn-amber" onclick="openModal('m-ship-update')">업데이트</button>
+          <button class="btn btn-sm btn-amber" onclick="openStageModal()">업데이트</button>
         </div>
         <select id="prog-sel" onchange="renderTL(this.value)" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;margin-bottom:12px;background:var(--white);outline:none"></select>
         <div class="card">
@@ -793,12 +793,23 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
     <div class="modal-drag"></div>
     <div class="modal-inner">
       <div class="modal-title">진행상황 업데이트</div>
-      <div class="form-field"><label>주문 선택</label><select id="su-order"></select></div>
-      <div class="form-field"><label>현재 단계</label><select><option>공장 출고 준비중</option><option>중국 물류 대기중</option><option selected>한국 운송중 (해운)</option><option>통관중</option><option>통관 완료</option><option>고객 출고 완료</option></select></div>
-      <div class="form-grid"><div class="form-field"><label>날짜</label><input type="date" value="2025-04-14"></div><div class="form-field"><label>예상 도착일</label><input type="date" value="2025-04-22"></div></div>
-      <div class="form-field"><label>메모</label><input placeholder="예: 부산항 입항 완료"></div>
+      <div class="form-field"><label>주문 선택</label><select id="su-order" onchange="suFill()"></select></div>
+      <div class="form-field"><label>현재 단계</label><select id="su-status">
+        <option value="received">주문 접수</option>
+        <option value="factory">1. 공장 출고 준비중</option>
+        <option value="china">2. 중국 물류 대기중</option>
+        <option value="sea">3. 한국 운송중 (해운)</option>
+        <option value="customs">4. 통관중</option>
+        <option value="cleared">5. 통관 완료</option>
+        <option value="delivered">6. 고객 출고 완료 (납품완료)</option>
+        <option value="settled">정산 완료</option>
+        <option value="cancelled">주문 취소</option>
+      </select></div>
+      <div class="form-grid"><div class="form-field"><label>날짜</label><input type="date" id="su-date"></div><div class="form-field"><label>납품 예정일</label><input type="date" id="su-eta"></div></div>
+      <div class="form-field"><label>메모</label><input id="su-memo" placeholder="예: 부산항 입항 완료" maxlength="500"></div>
+      <div id="su-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
     </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('m-ship-update')">취소</button><button class="btn btn-amber" onclick="closeModal('m-ship-update')">업데이트</button></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('m-ship-update')">취소</button><button class="btn btn-amber" id="su-btn" onclick="saveStage()">업데이트</button></div>
   </div>
 </div>
 
@@ -1402,6 +1413,57 @@ async function saveOemOrder() {
     await loadData('oem');
     renderOem(DATA.oem);
     switchMain('oem'); oemTab('order');
+  } catch (e) {
+    err.textContent = '서버에 연결할 수 없습니다.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── 해운 진행 단계 업데이트 ──
+function openStageModal() {
+  const sel = document.getElementById('su-order');
+  if (!sel.options.length) { alert('업데이트할 OEM 주문이 없습니다. 먼저 주문을 등록하세요.'); return; }
+  sel.value = document.getElementById('prog-sel').value || sel.value; // 지금 보고 있는 주문으로
+  suFill();
+  openModal('m-ship-update');
+}
+
+function suFill() {
+  const o = (DATA.oem?.orders || []).find(x => x.id === document.getElementById('su-order').value);
+  if (!o) return;
+  document.getElementById('su-status').value = o.status in OEM_STATUS ? o.status : 'received';
+  document.getElementById('su-date').value = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  document.getElementById('su-eta').value = o.expected_dt ? fmtDate(o.expected_dt) : '';
+  document.getElementById('su-memo').value = (o.oem_shipments || [])[0]?.memo || '';
+  document.getElementById('su-err').textContent = '';
+}
+
+async function saveStage() {
+  const err = document.getElementById('su-err');
+  const btn = document.getElementById('su-btn');
+  const id = document.getElementById('su-order').value;
+  const body = {
+    status: document.getElementById('su-status').value,
+    date:   document.getElementById('su-date').value,
+    eta:    document.getElementById('su-eta').value || null,
+    memo:   document.getElementById('su-memo').value.trim()
+  };
+  if (!id) { err.textContent = '주문을 선택하세요.'; return; }
+  if (!body.date) { err.textContent = '날짜를 입력하세요.'; return; }
+  if (body.status === 'cancelled' && !confirm('이 주문을 취소 상태로 바꿀까요?')) return;
+  err.textContent = '';
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/oem/orders?id=' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(body) });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { closeModal('m-ship-update'); alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) { err.textContent = r.error || ('업데이트 실패 (' + res.status + ')'); return; }
+    closeModal('m-ship-update');
+    await loadData('oem');
+    renderOem(DATA.oem);
+    const ps = document.getElementById('prog-sel');
+    if ([...ps.options].some(op => op.value === id)) { ps.value = id; renderTL(id); }
   } catch (e) {
     err.textContent = '서버에 연결할 수 없습니다.';
   } finally {

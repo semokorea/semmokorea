@@ -13,6 +13,18 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="/icons/favicon.png">
 <title>세모코리아 어드민</title>
+<script>
+  // 새로고침 시 로그인 화면 깜빡임 방지 (저장된 세션 있으면 미리 숨김)
+  try {
+    if (localStorage.getItem('semokorea_auth')) {
+      document.documentElement.classList.add('semo-authed');
+    }
+  } catch (e) {}
+</script>
+<style>
+  html.semo-authed #login-screen { display: none !important; }
+  html.semo-authed #admin-screen { display: block !important; }
+</style>
 <style>
 :root {
   --green: #1A6B3C;
@@ -947,8 +959,21 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 <script>
 // ── 인증 (서버 /api/auth/login → JWT) ──
 const API_BASE = '/api';
+const AUTH_STORAGE_KEY = 'semokorea_auth';
 let curUser = null;
 let authToken = null;
+
+function saveSession() {
+  try {
+    if (authToken && curUser) {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: authToken, user: curUser }));
+    }
+  } catch (e) {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch (e) {}
+}
 
 function apiFetch(path, opts = {}) {
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
@@ -978,6 +1003,7 @@ async function doLogin() {
     }
     authToken = data.token;
     curUser = { ...data.user, init: (data.user.name || u).slice(0, 2).toUpperCase() };
+    saveSession();
   } catch (e) {
     err.textContent = '서버에 연결할 수 없습니다.';
     return;
@@ -1032,11 +1058,33 @@ async function changePassword() {
 function doLogout() {
   curUser = null;
   authToken = null;
+  clearSession();
+  document.documentElement.classList.remove('semo-authed');
   document.getElementById('admin-screen').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('inp-pw').value = '';
   document.getElementById('login-err').textContent = '';
 }
+
+// ── 로그인 유지: 새로고침 시 저장된 세션 복원 (JWT 7일 유효) ──
+function restoreSession() {
+  let saved = null;
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (raw) saved = JSON.parse(raw);
+  } catch (e) {}
+  if (!saved || !saved.token || !saved.user) return;
+  authToken = saved.token;
+  curUser = saved.user;
+  if (!curUser.init) curUser.init = (curUser.name || curUser.username || '').slice(0, 2).toUpperCase();
+  document.getElementById('nav-av').textContent = curUser.init;
+  document.getElementById('nav-nm').textContent = curUser.name;
+  document.getElementById('more-username').textContent = curUser.name + ' (' + curUser.username + ')';
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('admin-screen').style.display = 'block';
+  startSync(); mInitItems(); loadAll();
+}
+restoreSession();
 
 // ── 화면 새로고침 타이머 (마지막으로 데이터를 불러온 뒤 경과 시간) ──
 let sec = 0;

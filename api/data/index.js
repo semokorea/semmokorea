@@ -17,22 +17,26 @@ function check(error) {
   if (error) throw new Error(error.message);
 }
 
-// ── 쇼핑몰: 오늘 현황 + 최근 주문 + 발송 대기 ──
-async function getShop() {
+// ── 쇼핑몰: 오늘 현황 + 기간 내 주문(스토어별 집계용) + 발송 대기 ──
+// days: 주문일 기준 최근 며칠 (1=오늘, 기본 7, 최대 90)
+async function getShop({ days } = {}) {
   const today = kstDate();
+  const nDays = Math.max(1, Math.min(90, parseInt(days, 10) || 7));
+  const since = kstDate(-(nDays - 1));
 
   const [recent, pending, todayOrders, shippedToday] = await Promise.all([
     supabase
       .from('orders')
       .select(`
-        id, channel_order_no, channel_item_no, status, receiver_name,
-        address_full, delivery_message, total_amount, order_dt,
+        id, channel_order_no, channel_item_no, status, buyer_name, receiver_name,
+        address_full, delivery_message, total_amount, shipping_fee, order_dt,
         channels ( code, name ),
         order_items ( product_name, option_info, quantity ),
         shipments ( tracking_no, carrier, status )
       `)
+      .gte('order_dt', since)
       .order('order_dt', { ascending: false, nullsFirst: false })
-      .limit(100),
+      .limit(5000),
     supabase
       .from('orders')
       .select(`
@@ -64,6 +68,7 @@ async function getShop() {
       shipped_today: shippedToday.count || 0,
       today_sales:   live.reduce((s, o) => s + (o.total_amount || 0), 0)
     },
+    period:  { days: nDays, from: since, to: today },
     orders:  recent.data || [],
     pending: pending.data || []
   };
@@ -215,7 +220,7 @@ module.exports = async (req, res) => {
   if (!handler) return res.status(400).json({ error: 'type은 shop|stock|sales|oem 중 하나' });
 
   try {
-    return res.status(200).json(await handler());
+    return res.status(200).json(await handler(req.query));
   } catch (err) {
     console.error('[DATA]', req.query.type, err.message);
     return res.status(500).json({ error: err.message });

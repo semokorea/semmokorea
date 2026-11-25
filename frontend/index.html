@@ -206,6 +206,18 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .fpill { padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--white); color: var(--gray); font-family: inherit; white-space: nowrap; transition: all .12s; }
 .fpill.on { background: var(--green); color: #fff; border-color: var(--green); }
+/* 스토어별 집계 표 */
+.sum-tbl th.num, .sum-tbl td.num { text-align: right; }
+.sum-tbl td { vertical-align: top; }
+.sum-tbl .cnt { display: inline-block; font-size: 15px; font-weight: 700; color: var(--text); padding: 0 2px; border-radius: 4px; }
+.sum-tbl a.cnt { color: var(--green); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.sum-tbl a.cnt:hover { background: var(--green-l); }
+.sum-tbl a.cnt.red { color: var(--red); }
+.sum-tbl a.cnt.amber { color: #b45309; }
+.sum-tbl .amt { display: block; font-size: 11px; color: var(--text2); margin-top: 1px; }
+.sum-tbl tr.total td { background: #fafafa; font-weight: 600; border-top: 1px solid var(--border); }
+.sum-tbl tr:hover td { background: transparent; }
+.sum-tbl tr.total:hover td { background: #fafafa; }
 
 /* ── 재고 바 ── */
 .stock-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -428,27 +440,31 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
         <div id="sync-status" style="font-size:11px;color:var(--text2);margin:-6px 0 10px"></div>
         <div class="metrics" id="shop-metrics"></div>
 
-        <!-- 채널 필터 (모바일 스크롤) -->
-        <div id="order-filters" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none">
-          <button class="fpill on" style="flex-shrink:0" data-f="all" onclick="setOrderFilter('all')">전체</button>
-          <button class="fpill" style="flex-shrink:0" data-f="naver" onclick="setOrderFilter('naver')"><span class="ch ch-n"></span>네이버</button>
-          <button class="fpill" style="flex-shrink:0" data-f="coupang" onclick="setOrderFilter('coupang')"><span class="ch ch-c"></span>쿠팡</button>
-          <button class="fpill" style="flex-shrink:0" data-f="ably" onclick="setOrderFilter('ably')"><span class="ch ch-a"></span>에이블리</button>
-          <button class="fpill" style="flex-shrink:0" data-f="zigzag" onclick="setOrderFilter('zigzag')"><span class="ch ch-z"></span>지그재그</button>
-          <button class="fpill" style="flex-shrink:0" data-f="pending" onclick="setOrderFilter('pending')">발송대기</button>
-        </div>
-
-        <!-- 모바일: 카드형 목록 -->
-        <div class="card mob-only" id="order-cards"></div>
-
-        <!-- PC: 테이블형 목록 -->
-        <div class="card pc-only">
+        <!-- 스토어별 주문 집계 (숫자를 누르면 해당 주문 목록) -->
+        <div class="card">
+          <div class="card-head" style="flex-wrap:wrap;gap:8px">
+            <span class="card-title">스토어별 주문 집계 <span id="sum-range" style="font-weight:400;color:var(--text3);font-size:11px"></span></span>
+            <div id="sum-periods" style="display:flex;gap:4px">
+              <button class="fpill" data-d="1" onclick="setSummaryDays(1)">오늘</button>
+              <button class="fpill on" data-d="7" onclick="setSummaryDays(7)">7일</button>
+              <button class="fpill" data-d="30" onclick="setSummaryDays(30)">30일</button>
+              <button class="fpill" data-d="90" onclick="setSummaryDays(90)">90일</button>
+            </div>
+          </div>
           <div class="tbl-scroll">
-            <table class="tbl">
-              <thead><tr><th style="width:130px">주문번호</th><th style="width:70px">채널</th><th style="width:70px">수취인</th><th>상품</th><th style="width:50px">수량</th><th style="width:80px">금액</th><th style="width:75px">상태</th></tr></thead>
-              <tbody id="order-tbody"></tbody>
+            <table class="tbl sum-tbl">
+              <thead><tr>
+                <th>스토어</th>
+                <th class="num">주문</th>
+                <th class="num">취소</th>
+                <th class="num">반품</th>
+                <th class="num">발송대기</th>
+                <th class="num">순매출</th>
+              </tr></thead>
+              <tbody id="sum-tbody"></tbody>
             </table>
           </div>
+          <div style="padding:8px 12px;font-size:11px;color:var(--text3)">주문일 기준 · 주문 = 취소/반품 포함 전체 · 순매출 = 주문금액 − 취소 − 반품 · <b>숫자를 누르면</b> 해당 주문 목록이 열립니다</div>
         </div>
       </div>
 
@@ -677,6 +693,24 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
         <button class="btn" style="text-align:left;padding:12px 4px;border:none;border-radius:0;font-size:14px;color:var(--red)" onclick="closeModal('m-more');doLogout()">로그아웃</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 주문 목록 (집계 숫자 클릭) -->
+<div class="modal-back" id="m-orders" onclick="if(event.target===this)closeModal('m-orders')">
+  <div class="modal-sheet modal-pc" style="max-width:960px">
+    <div class="modal-drag"></div>
+    <div class="modal-inner">
+      <div class="modal-title" id="mo-title">주문 목록</div>
+      <div style="font-size:12px;color:var(--text2);margin:-6px 0 10px" id="mo-sub"></div>
+      <div class="tbl-scroll" style="max-height:60vh;overflow:auto;border:1px solid var(--border);border-radius:8px">
+        <table class="tbl" style="min-width:760px">
+          <thead><tr><th style="width:110px">주문일시</th><th style="width:70px">스토어</th><th style="width:120px">주문번호</th><th style="width:80px">수취인</th><th>상품 / 옵션</th><th style="width:40px">수량</th><th style="width:80px;text-align:right">금액</th><th style="width:70px">상태</th></tr></thead>
+          <tbody id="mo-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('m-orders')">닫기</button></div>
   </div>
 </div>
 
@@ -1152,7 +1186,6 @@ const ORDER_STATUS = {
 };
 const PENDING_STATUS = ['new', 'confirmed', 'preparing', 'ready'];
 const QUOTE_STATUS = { draft: ['작성중', 'b-draft'], sent: ['발송완료', 'b-sent'], confirmed: ['확정', 'b-conf'] };
-let orderFilter = 'all';
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1183,7 +1216,7 @@ const qtySum = items => (items || []).reduce((s, i) => s + (i.quantity || 0), 0)
 
 async function loadData(type) {
   try {
-    const res = await apiFetch('/data?type=' + type);
+    const res = await apiFetch('/data?type=' + type + (type === 'shop' ? '&days=' + summaryDays : ''));
     if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return null; }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || res.status);
@@ -1197,8 +1230,8 @@ async function loadData(type) {
 
 async function loadAll() {
   const loading = emptyMsg('불러오는 중…');
-  ['order-cards', 'ship-cards', 'stock-list', 'oem-cards', 'quote-list', 'client-list'].forEach(id => document.getElementById(id).innerHTML = loading);
-  ['order-tbody', 'ship-tbody', 'oem-tbody'].forEach(id => document.getElementById(id).innerHTML = `<tr><td colspan="7">${loading}</td></tr>`);
+  ['ship-cards', 'stock-list', 'oem-cards', 'quote-list', 'client-list'].forEach(id => document.getElementById(id).innerHTML = loading);
+  ['sum-tbody', 'ship-tbody', 'oem-tbody'].forEach(id => document.getElementById(id).innerHTML = `<tr><td colspan="7">${loading}</td></tr>`);
   const [shop, stock, sales, oem] = await Promise.all(['shop', 'stock', 'sales', 'oem'].map(loadData));
   if (!curUser) return; // 로그아웃됨
   renderShop(shop); renderStock(stock); renderSales(sales); renderOem(oem);
@@ -1215,7 +1248,7 @@ function errorFill(ids, tbodies, msg) {
 function renderShop(d) {
   if (!d || d._error) {
     document.getElementById('shop-metrics').innerHTML = '';
-    return errorFill(['order-cards', 'ship-cards'], ['order-tbody', 'ship-tbody'], d?._error || '');
+    return errorFill(['ship-cards'], ['sum-tbody', 'ship-tbody'], d?._error || '');
   }
   const m = d.metrics;
   document.getElementById('shop-metrics').innerHTML =
@@ -1227,38 +1260,83 @@ function renderShop(d) {
   renderShipList();
 }
 
-function setOrderFilter(f) {
-  orderFilter = f;
-  document.querySelectorAll('#order-filters .fpill').forEach(b => b.classList.toggle('on', b.dataset.f === f));
-  renderOrders();
+// ── 스토어별 주문 집계 (숫자 클릭 → 주문 목록) ──
+const STORES = [
+  { code: 'naver',   name: '네이버' },
+  { code: 'coupang', name: '쿠팡' },
+  { code: 'ably',    name: '에이블리' },
+  { code: 'zigzag',  name: '지그재그' }
+];
+// 집계 구분: all=전체 주문, cancel=취소, return=반품, pending=발송대기
+const SUM_KIND = {
+  all:     { label: '주문',     test: () => true },
+  cancel:  { label: '취소',     test: o => o.status === 'cancelled' },
+  return:  { label: '반품',     test: o => o.status === 'returned' },
+  pending: { label: '발송대기', test: o => PENDING_STATUS.includes(o.status) }
+};
+let summaryDays = 7;
+
+async function setSummaryDays(d) {
+  summaryDays = d;
+  document.querySelectorAll('#sum-periods .fpill').forEach(b => b.classList.toggle('on', Number(b.dataset.d) === d));
+  document.getElementById('sum-tbody').innerHTML = `<tr><td colspan="6">${emptyMsg('불러오는 중…')}</td></tr>`;
+  const r = await loadData('shop');
+  if (r) renderShop(DATA.shop);
 }
 
+function ordersOf(store, kind) {
+  return (DATA.shop?.orders || []).filter(o => (store === 'all' || o.channels?.code === store) && SUM_KIND[kind].test(o));
+}
+const amountOf = list => list.reduce((s, o) => s + (o.total_amount || 0), 0);
+
 function renderOrders() {
-  const all = DATA.shop?.orders || [];
-  const list = orderFilter === 'all' ? all
-    : orderFilter === 'pending' ? all.filter(o => PENDING_STATUS.includes(o.status))
-    : all.filter(o => o.channels?.code === orderFilter);
-  const cards = document.getElementById('order-cards');
-  const tbody = document.getElementById('order-tbody');
-  if (!list.length) {
-    const msg = all.length ? '해당 조건의 주문이 없습니다' : '아직 수집된 주문이 없습니다';
-    cards.innerHTML = emptyMsg(msg);
-    tbody.innerHTML = `<tr><td colspan="7">${emptyMsg(msg)}</td></tr>`;
-    return;
-  }
-  cards.innerHTML = list.map(o => {
+  const tbody = document.getElementById('sum-tbody');
+  const p = DATA.shop?.period;
+  document.getElementById('sum-range').textContent = p ? (p.from === p.to ? `· ${p.to}` : `· ${p.from} ~ ${p.to}`) : '';
+
+  // 숫자 셀: 0이면 회색 숫자, 1 이상이면 클릭 가능한 링크
+  const cell = (store, kind, color = '') => {
+    const list = ordersOf(store, kind);
+    const n = list.length;
+    const amt = kind === 'pending' ? '' : `<span class="amt">${won(amountOf(list))}원</span>`;
+    const num = n
+      ? `<a class="cnt ${color}" onclick="openOrderList('${store}','${kind}')" title="눌러서 목록 보기">${won(n)}</a>`
+      : `<span class="cnt" style="color:var(--text3);font-weight:500">0</span>`;
+    return `<td class="num">${num}${amt}</td>`;
+  };
+  const net = store => {
+    const sum = k => amountOf(ordersOf(store, k));
+    return `<td class="num"><span class="cnt" style="font-size:14px">${won(sum('all') - sum('cancel') - sum('return'))}<span style="font-size:11px;font-weight:500;color:var(--text2)">원</span></span></td>`;
+  };
+  const row = (store, name, total = false) =>
+    `<tr class="${total ? 'total' : ''}"><td>${total ? '<b>합계</b>' : chTag({ code: store, name })}</td>` +
+    cell(store, 'all') + cell(store, 'cancel', 'red') + cell(store, 'return', 'red') + cell(store, 'pending', 'amber') + net(store) + '</tr>';
+
+  tbody.innerHTML = STORES.map(s => row(s.code, s.name)).join('') + row('all', '합계', true);
+}
+
+function openOrderList(store, kind) {
+  const list = ordersOf(store, kind).slice().sort((a, b) => String(b.order_dt).localeCompare(String(a.order_dt)));
+  const storeName = store === 'all' ? '전체 스토어' : (STORES.find(s => s.code === store)?.name || store);
+  document.getElementById('mo-title').textContent = `${storeName} · ${SUM_KIND[kind].label} ${won(list.length)}건`;
+  const p = DATA.shop?.period;
+  document.getElementById('mo-sub').textContent =
+    (p ? `${p.from} ~ ${p.to} · ` : '') + (kind === 'pending' ? '' : `금액 합계 ${won(amountOf(list))}원`);
+  document.getElementById('mo-tbody').innerHTML = list.length ? list.map(o => {
     const [lbl, cls] = ORDER_STATUS[o.status] || [o.status, 'b-draft'];
-    const pend = PENDING_STATUS.includes(o.status);
-    return `<div class="order-card"${pend ? ` onclick="shopTab('ship')"` : ''}>
-      <div class="order-card-top"><div><div class="order-no">${esc(o.channel_order_no)}</div><div class="order-name">${esc(o.receiver_name)}</div></div><span class="badge ${cls}">${esc(lbl)}</span></div>
-      <div class="order-product">${chTag(o.channels)} · ${esc(itemsText(o.order_items))} · ${qtySum(o.order_items)}개</div>
-      <div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">${esc(fmtTime(o.order_dt))}</span></div>
-    </div>`;
-  }).join('');
-  tbody.innerHTML = list.map(o => {
-    const [lbl, cls] = ORDER_STATUS[o.status] || [o.status, 'b-draft'];
-    return `<tr><td style="font-family:monospace;font-size:11px">${esc(o.channel_order_no)}</td><td>${chTag(o.channels)}</td><td>${esc(o.receiver_name)}</td><td>${esc(itemsText(o.order_items))}</td><td>${qtySum(o.order_items)}</td><td>${won(o.total_amount)}</td><td><span class="badge ${cls}">${esc(lbl)}</span></td></tr>`;
-  }).join('');
+    const dt = o.order_dt ? String(o.order_dt).slice(0, 16).replace('T', ' ') : '-';
+    return `<tr>
+      <td style="font-size:11px">${esc(dt)}</td>
+      <td>${chTag(o.channels)}</td>
+      <td style="font-family:monospace;font-size:11px" title="${esc(o.channel_order_no)}">${esc(o.channel_order_no)}</td>
+      <td>${esc(o.receiver_name || o.buyer_name || '-')}</td>
+      <td title="${esc(itemsText(o.order_items))}">${esc(itemsText(o.order_items))}</td>
+      <td>${qtySum(o.order_items)}</td>
+      <td style="text-align:right">${won(o.total_amount)}</td>
+      <td><span class="badge ${cls}">${esc(lbl)}</span></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="8">${emptyMsg('해당 주문이 없습니다')}</td></tr>`;
+  openModal('m-orders');
 }
 
 function renderShipList() {

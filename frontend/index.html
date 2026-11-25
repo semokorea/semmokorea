@@ -926,7 +926,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
         <tbody id="qv-items"></tbody>
       </table>
       <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px" id="qv-sum"></div>
-      <div id="m-pdf-msg" style="display:none;margin-top:10px;padding:10px 12px;background:var(--green-l);border-radius:8px;font-size:12px;color:#15803d">인쇄 창에서 대상을 <b>PDF로 저장</b>으로 선택하세요.</div>
+      <div id="m-pdf-msg" style="display:none;margin-top:10px;padding:10px 12px;background:var(--green-l);border-radius:8px;font-size:12px;color:#15803d"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px">
         <span style="color:var(--text2)">상태</span>
         <select id="qv-status" onchange="setQuoteStatus(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">
@@ -940,7 +940,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <button class="btn" style="color:var(--red);margin-right:auto" onclick="deleteQuote()">삭제</button>
       <button class="btn" onclick="closeModal('m-quote-view')">닫기</button>
       <button class="btn" onclick="closeModal('m-quote-view');openQuoteModal(currentQuoteId)">수정</button>
-      <button class="btn btn-amber" onclick="printQuote(currentQuoteId)">PDF 다운로드</button>
+      <button class="btn btn-amber" id="qv-pdf-btn" onclick="printQuote(currentQuoteId)">PDF 다운로드</button>
     </div>
   </div>
 </div>
@@ -2403,6 +2403,56 @@ const COMPANY = {
 };
 let quoteTplCache = null;
 
+const _scriptLoads = {};
+function loadScriptOnce(src) {
+  return _scriptLoads[src] || (_scriptLoads[src] = new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = ok;
+    s.onerror = () => { delete _scriptLoads[src]; fail(new Error('PDF 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)')); };
+    document.head.appendChild(s);
+  }));
+}
+
+// 견적서 HTML → A4 한 장 PDF Blob
+async function renderQuotePdf(html) {
+  const W = 794, H = 1123; // A4 @96dpi
+  const frame = document.createElement('iframe');
+  frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${W}px;height:${H}px;border:0`;
+  document.body.appendChild(frame);
+  try {
+    await new Promise(r => { frame.onload = r; frame.srcdoc = html; });
+    const doc = frame.contentDocument;
+    await Promise.all([...doc.images].map(img => img.complete ? 0 : new Promise(r => { img.onload = img.onerror = r; })));
+    try { await Promise.race([doc.fonts.ready, new Promise(r => setTimeout(r, 3000))]); } catch (_) {}
+    const canvas = await window.html2canvas(doc.querySelector('.page'), {
+      scale: 2, useCORS: true, backgroundColor: '#ffffff',
+      width: W, height: H, windowWidth: W, windowHeight: H
+    });
+    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+    return pdf.output('blob');
+  } finally {
+    frame.remove();
+  }
+}
+
+// 파일로 저장: 일반 브라우저는 바로 다운로드, 홈 화면 앱(iOS 독립 실행)은 공유 시트로
+async function saveBlob(blob, fileName) {
+  const standalone = window.navigator.standalone === true;
+  if (standalone && navigator.canShare) {
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+    if (navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: fileName }); return; }
+      catch (e) { if (e.name === 'AbortError') return; }
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
 async function printQuote(id) {
   const q = (DATA.oem?.quotes || []).find(x => x.id === id);
   if (!q) return;
@@ -2440,22 +2490,26 @@ async function printQuote(id) {
     // CSS로 그린 임시 직인 → 실제 직인 이미지
     html = html.replace(/<div class="stamp">[\s\S]*?<div class="stamp-in">직인<\/div>\s*<\/div>\s*<\/div>/,
       `<img src="${new URL('stamp_semockorea.png', location.href)}" alt="직인" style="width:28mm;height:28mm;opacity:.9">`);
-    html = html.replace('<head>',`<head><title>${esc(q.quote_no)}_${esc(client.name || '')}</title><style>@page{size:A4;margin:0}</style>`);
-
-    let frame = document.getElementById('quote-print-frame');
-    if (frame) frame.remove();
-    frame = document.createElement('iframe');
-    frame.id = 'quote-print-frame';
-    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
-    document.body.appendChild(frame);
-    frame.srcdoc = html;
-    frame.onload = () => {
-      const img = frame.contentDocument.querySelector('img');
-      const go = () => { frame.contentWindow.focus(); frame.contentWindow.print(); };
-      if (img && !img.complete) { img.onload = go; img.onerror = go; } else go();
-    };
-    document.getElementById('m-pdf-msg').style.display = 'block';
+    // 화면 폭과 상관없이 A4(794×1123px)로 렌더 → 캔버스 → PDF 파일로 바로 다운로드 (인쇄 창 없음, 모바일 포함)
+    html = html.replace('<head>', `<head><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">`);
+    const fileName = `${q.quote_no}_${client.name || '견적서'}.pdf`.replace(/[\\/:*?"<>|]/g, '_');
+    const btn = document.getElementById('qv-pdf-btn');
+    const msg = document.getElementById('m-pdf-msg');
+    if (btn) { btn.disabled = true; btn.textContent = 'PDF 만드는 중…'; }
+    msg.textContent = 'PDF 파일을 만드는 중입니다…'; msg.style.display = 'block';
+    try {
+      await Promise.all([
+        loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+        loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+      ]);
+      const blob = await renderQuotePdf(html);
+      await saveBlob(blob, fileName);
+      msg.textContent = `PDF 저장 완료: ${fileName}`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'PDF 다운로드'; }
+    }
   } catch (e) {
+    document.getElementById('m-pdf-msg').style.display = 'none';
     alert('PDF 생성 실패: ' + e.message);
   }
 }

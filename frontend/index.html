@@ -1256,6 +1256,19 @@ function oemFlowKey(status) {
   if (status === 'delivered' || status === 'settled') return 'done';
   return status; // received / sample / production / cancelled
 }
+// 주문관리 정렬: OEM_FLOW 순서(견적→주문접수→샘플→메인→출고중→납품완료) + 취소는 맨 뒤
+const OEM_FLOW_RANK = Object.fromEntries(OEM_FLOW.map((f, i) => [f.key, i]));
+OEM_FLOW_RANK.cancelled = OEM_FLOW.length + 1;
+function oemSortRank(status) {
+  const r = OEM_FLOW_RANK[oemFlowKey(status)];
+  return r == null ? 99 : r;
+}
+function oemOrderSort(a, b) {
+  const ra = oemSortRank(a.status), rb = oemSortRank(b.status);
+  if (ra !== rb) return ra - rb;
+  // 같은 상태: 최신 주문이 위로
+  return (b.created_at || '').localeCompare(a.created_at || '');
+}
 // 선택한 5단계 → 저장할 실제 status 값 (이미 같은 묶음이면 세부 단계 유지)
 function oemFlowToStatus(key, current) {
   if (key === 'shipping') return SHIPPING_STAGES.includes(current) ? current : 'factory';
@@ -1634,7 +1647,8 @@ function renderOem(d) {
   // 주문 목록 (미정산 카드를 누르면 미정산만)
   const desc = o => o.title || itemsText(o.oem_order_items);
   const due = o => ['delivered', 'settled'].includes(o.status) ? '완료' : (o.expected_dt ? fmtDate(o.expected_dt).slice(5).replace('-', '/') : '-');
-  const list = oemUnsettledOnly ? d.orders.filter(o => o.status === 'delivered') : d.orders;
+  const sorted = d.orders.slice().sort(oemOrderSort);
+  const list = oemUnsettledOnly ? sorted.filter(o => o.status === 'delivered') : sorted;
   if (!list.length) {
     const msg = oemUnsettledOnly ? '미정산 주문이 없습니다' : '등록된 OEM 주문이 없습니다';
     document.getElementById('oem-cards').innerHTML = emptyMsg(msg);

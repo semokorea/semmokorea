@@ -250,4 +250,112 @@ function mapNaverStatus(s) {
   return m[s] || 'new';
 }
 
-module.exports = { syncOrders, registerShipment, getToken, mapNaverOrder };
+// ────────────────────────────────────────────────────────────
+//  상품 문의 (Q&A)
+//  문서: GET  /v1/contents/qnas               (fromDate, toDate 필수)
+//        PUT  /v1/contents/qnas/:questionId   body: { commentContent } 1000자 이하
+//  필요 권한: 네이버 앱 "[문의]" API 그룹 포함 (없으면 403 GW.AUTHN)
+// ────────────────────────────────────────────────────────────
+
+// Q&A 목록 조회 (페이지네이션)
+async function fetchQnas(fromDate, toDate) {
+  const all = [];
+  let page = 0, hasMore = true;
+  while (hasMore && page < 50) {
+    const res = await call('get', '/v1/contents/qnas', {
+      params: { fromDate: kstIso(fromDate), toDate: kstIso(toDate), page, size: 100 }
+    });
+    const body = res.data?.data ?? res.data ?? {};
+    const rows = body.contents || body.items || body.list || [];
+    all.push(...rows);
+    hasMore = Boolean(body.hasNext || (body.totalPages != null && page + 1 < body.totalPages));
+    page++;
+    if (!rows.length) break;
+  }
+  return all;
+}
+
+// 네이버 Q&A 응답 → product_qnas row로 변환
+function mapNaverQna(channelId, q) {
+  return {
+    channel_id:          channelId,
+    channel_question_id: String(q.questionId ?? q.commentNo ?? q.id ?? ''),
+    product_no:          q.productNo ? String(q.productNo) : null,
+    product_name:        q.productName || null,
+    product_order_id:    q.productOrderId ? String(q.productOrderId) : null,
+    question_type:       q.inquiryCategory || q.inquiryType || q.category || null,
+    question_title:      q.title || null,
+    question_content:    q.content || q.questionContent || q.commentContent || null,
+    questioner_id:       q.writerId || q.customerId || null,
+    questioner_nickname: q.writerName || q.customerName || q.nickName || null,
+    is_secret:           Boolean(q.secretYn === 'Y' || q.isSecret),
+    asked_at:            q.writeDate || q.registeredDate || q.createdDate || null,
+    answer_content:      q.commentContent || q.answerContent || null,
+    answered_at:         q.answerDate || q.replyDate || null,
+    answer_source:       (q.commentContent || q.answerContent) ? 'smartstore' : null,
+    raw_data:            q,
+    synced_at:           new Date().toISOString()
+  };
+}
+
+// 수집: days 일치 Q&A를 DB에 upsert
+async function syncQnas({ days = 7 } = {}) {
+  const channelId = await getChannelId('naver');
+  const nDays = Math.max(1, Math.min(30, Math.floor(Number(days) || 7)));
+  const now = new Date(Date.now() - 5000);
+  const from = new Date(now.getTime() - nDays * 24 * 3600 * 1000);
+
+  let synced = 0, errors = 0, errMsg = '';
+  let qnas = [];
+  try {
+    qnas = await fetchQnas(from, now);
+  } catch (e) {
+    errMsg = `문의 조회 실패: ${errText(e)}`;
+    console.error('[NAVER-QNA]', errMsg);
+    errors++;
+  }
+
+  for (const q of qnas) {
+    try {
+      const row = mapNaverQna(channelId, q);
+      if (!row.channel_question_id) continue;
+      // 이미 API로 답한 건은 answer_source 'api' 유지 (스마트스토어 쓰기로 덮이지 않도록)
+      const { data: exist } = await supabase
+        .from('product_qnas')
+        .select('id, answer_source')
+        .eq('channel_id', channelId)
+        .eq('channel_question_id', row.channel_question_id)
+        .maybeSingle();
+      if (exist?.answer_source === 'api' && row.answer_source === 'smartstore') {
+        row.answer_source = 'api';
+      }
+      const { error } = await supabase
+        .from('product_qnas')
+        .upsert(row, { onConflict: 'channel_id,channel_question_id' });
+      if (error) throw error;
+      synced++;
+    } catch (e) {
+      console.error('[NAVER-QNA] 저장 실패:', e.message);
+      errors++;
+      errMsg = errMsg || `저장 실패: ${e.message}`;
+    }
+  }
+
+  const message = `문의 ${qnas.length}건 조회 · 저장 ${synced}건` + (errMsg ? ` · ${errMsg}` : '');
+  await logSync('naver-qna', { synced, errors, message });
+  return { synced, errors, message };
+}
+
+// 답변 등록/수정 — PUT /v1/contents/qnas/:questionId
+async function answerQna({ questionId, commentContent }) {
+  if (!questionId) throw new Error('questionId가 필요합니다.');
+  if (!commentContent || !commentContent.trim()) throw new Error('답변 내용이 비었습니다.');
+  const trimmed = commentContent.trim().slice(0, 1000);
+  await call('put', `/v1/contents/qnas/${encodeURIComponent(questionId)}`, {
+    data: { commentContent: trimmed },
+    headers: { 'Content-Type': 'application/json' }
+  });
+  return { ok: true, answer: trimmed };
+}
+
+module.exports = { syncOrders, registerShipment, getToken, mapNaverOrder, syncQnas, answerQna };

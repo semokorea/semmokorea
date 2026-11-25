@@ -1,6 +1,6 @@
 // api/data/index.js
-// GET /api/data?type=shop|stock|sales|oem — 어드민 화면용 조회 API (읽기 전용)
-// Vercel Hobby는 함수 개수 제한이 있어 화면 조회를 한 함수로 묶는다.
+// GET  /api/data?type=shop|stock|sales|oem|qna  — 어드민 화면용 조회 API
+// POST /api/data (action=collect_qna|answer_qna)  — Q&A 수집/답변 (Vercel 함수 개수 제한 때문에 여기에 묶음)
 const { supabase } = require('../../utils/supabase');
 const { verifyRequest } = require('../../utils/auth');
 
@@ -227,19 +227,112 @@ async function getOem() {
   };
 }
 
-const HANDLERS = { shop: getShop, stock: getStock, sales: getSales, oem: getOem };
+// ── 상품 Q&A (네이버 커머스 API) ──
+// days: 최근 며칠간 (기본 14, 최대 90) · onlyUnanswered: 미답변만
+async function getQna({ days, onlyUnanswered } = {}) {
+  const nDays = Math.max(1, Math.min(90, parseInt(days, 10) || 14));
+  const since = kstDate(-(nDays - 1)) + 'T00:00:00';
+
+  let q = supabase
+    .from('product_qnas')
+    .select(`
+      id, channel_question_id, product_no, product_name, product_order_id,
+      question_type, question_title, question_content,
+      questioner_nickname, is_secret, asked_at,
+      answer_content, answered_at, answered_by, answer_source,
+      channels ( code, name )
+    `)
+    .gte('asked_at', since)
+    .order('asked_at', { ascending: false, nullsFirst: false })
+    .limit(500);
+  if (onlyUnanswered === '1' || onlyUnanswered === 'true') q = q.is('answered_at', null);
+  const { data, error } = await q;
+  check(error);
+
+  const rows = data || [];
+  const unansweredAll = await supabase
+    .from('product_qnas')
+    .select('id', { count: 'exact', head: true })
+    .is('answered_at', null);
+  check(unansweredAll.error);
+
+  return {
+    metrics: {
+      total:        rows.length,
+      unanswered:   rows.filter(r => !r.answered_at).length,
+      unanswered_total: unansweredAll.count || 0
+    },
+    period: { days: nDays, from: since.slice(0, 10) },
+    qnas:   rows
+  };
+}
+
+const HANDLERS = { shop: getShop, stock: getStock, sales: getSales, oem: getOem, qna: getQna };
+
+// ── POST 액션: Q&A 수집 / 답변 등록 ──
+async function postAction(req, payload) {
+  const naver = require('../../sync/naver');
+  const action = req.query.action || payload.action;
+
+  if (action === 'collect_qna') {
+    return await naver.syncQnas({ days: payload.days });
+  }
+
+  if (action === 'answer_qna') {
+    const { id, question_id, commentContent } = payload;
+    if (!id && !question_id) throw new Error('id 또는 question_id가 필요합니다.');
+    if (!commentContent || !commentContent.trim()) throw new Error('답변 내용을 입력하세요.');
+
+    // DB row 조회 (channel_question_id 확인)
+    let row;
+    if (id) {
+      const r = await supabase.from('product_qnas').select('id, channel_question_id').eq('id', id).maybeSingle();
+      if (r.error) throw new Error(r.error.message);
+      row = r.data;
+    } else {
+      row = { id: null, channel_question_id: String(question_id) };
+    }
+    if (!row || !row.channel_question_id) throw new Error('문의를 찾을 수 없습니다.');
+
+    // 네이버에 답변 전송
+    await naver.answerQna({ questionId: row.channel_question_id, commentContent });
+
+    // DB 업데이트
+    const update = {
+      answer_content: commentContent.trim().slice(0, 1000),
+      answered_at:    new Date().toISOString(),
+      answered_by:    req.user?.username || 'admin',
+      answer_source:  'api'
+    };
+    const { error } = await supabase
+      .from('product_qnas')
+      .update(update)
+      .eq('channel_question_id', row.channel_question_id);
+    if (error) throw new Error(error.message);
+    return { ok: true, ...update };
+  }
+
+  throw new Error('지원하지 않는 action');
+}
 
 module.exports = async (req, res) => {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' });
-  if (!verifyRequest(req)) return res.status(401).json({ error: '인증 필요' });
-
-  const handler = HANDLERS[req.query.type];
-  if (!handler) return res.status(400).json({ error: 'type은 shop|stock|sales|oem 중 하나' });
+  const payload = verifyRequest(req);
+  if (!payload) return res.status(401).json({ error: '인증 필요' });
+  req.user = payload;
 
   try {
-    return res.status(200).json(await handler(req.query));
+    if (req.method === 'GET') {
+      const handler = HANDLERS[req.query.type];
+      if (!handler) return res.status(400).json({ error: 'type은 shop|stock|sales|oem|qna 중 하나' });
+      return res.status(200).json(await handler(req.query));
+    }
+    if (req.method === 'POST') {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      return res.status(200).json(await postAction(req, body));
+    }
+    return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {
-    console.error('[DATA]', req.query.type, err.message);
+    console.error('[DATA]', req.method, req.query.type || req.query.action, err.message);
     return res.status(500).json({ error: err.message });
   }
 };

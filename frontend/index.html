@@ -382,7 +382,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <div class="topbar-tab" onclick="switchMain('oem')">OEM 사업</div>
     </div>
     <div class="topbar-right">
-      <span class="sync-pill" id="sync-lbl">동기화 3분 전</span>
+      <span class="sync-pill" id="sync-lbl" onclick="loadAll()" style="cursor:pointer" title="클릭하면 새로고침">동기화 0초 전</span>
       <div class="topbar-avatar" id="nav-av">AD</div>
       <span class="topbar-username" id="nav-nm">관리자</span>
       <button class="logout-btn" onclick="doLogout()">로그아웃</button>
@@ -420,64 +420,27 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
             <button class="btn btn-sm btn-green" onclick="shopTab('ship')">배송처리</button>
           </div>
         </div>
-        <div class="metrics">
-          <div class="metric"><div class="metric-label">신규 주문</div><div class="metric-val">127</div><div class="metric-sub up">+18건</div></div>
-          <div class="metric"><div class="metric-label">발송 대기</div><div class="metric-val" style="color:var(--amber)">84건</div><div class="metric-sub dn">처리 필요</div></div>
-          <div class="metric"><div class="metric-label">발송 완료</div><div class="metric-val" style="color:#16a34a">38건</div><div class="metric-sub">오늘</div></div>
-          <div class="metric"><div class="metric-label">오늘 매출</div><div class="metric-val" style="font-size:16px">3,842만</div><div class="metric-sub up">+12.4%</div></div>
-        </div>
+        <div class="metrics" id="shop-metrics"></div>
 
         <!-- 채널 필터 (모바일 스크롤) -->
-        <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none">
-          <button class="fpill on" style="flex-shrink:0">전체</button>
-          <button class="fpill" style="flex-shrink:0"><span class="ch ch-n"></span>네이버</button>
-          <button class="fpill" style="flex-shrink:0"><span class="ch ch-c"></span>쿠팡</button>
-          <button class="fpill" style="flex-shrink:0"><span class="ch ch-a"></span>에이블리</button>
-          <button class="fpill" style="flex-shrink:0"><span class="ch ch-z"></span>지그재그</button>
-          <button class="fpill" style="flex-shrink:0">발송대기</button>
+        <div id="order-filters" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none">
+          <button class="fpill on" style="flex-shrink:0" data-f="all" onclick="setOrderFilter('all')">전체</button>
+          <button class="fpill" style="flex-shrink:0" data-f="naver" onclick="setOrderFilter('naver')"><span class="ch ch-n"></span>네이버</button>
+          <button class="fpill" style="flex-shrink:0" data-f="coupang" onclick="setOrderFilter('coupang')"><span class="ch ch-c"></span>쿠팡</button>
+          <button class="fpill" style="flex-shrink:0" data-f="ably" onclick="setOrderFilter('ably')"><span class="ch ch-a"></span>에이블리</button>
+          <button class="fpill" style="flex-shrink:0" data-f="zigzag" onclick="setOrderFilter('zigzag')"><span class="ch ch-z"></span>지그재그</button>
+          <button class="fpill" style="flex-shrink:0" data-f="pending" onclick="setOrderFilter('pending')">발송대기</button>
         </div>
 
         <!-- 모바일: 카드형 목록 -->
-        <div class="card mob-only">
-          <div class="order-card" onclick="shopTab('ship')">
-            <div class="order-card-top"><div><div class="order-no">N-240414-001</div><div class="order-name">김민지</div></div><span class="badge b-wait">발송대기</span></div>
-            <div class="order-product"><span class="ch ch-n"></span>네이버 · 린넨 블라우스 M · 1개</div>
-            <div class="order-meta"><span class="order-amount">42,000원</span><span class="order-time">10:23</span></div>
-          </div>
-          <div class="order-card" onclick="shopTab('ship')">
-            <div class="order-card-top"><div><div class="order-no">C-240414-047</div><div class="order-name">이수현</div></div><span class="badge b-wait">발송대기</span></div>
-            <div class="order-product"><span class="ch ch-c"></span>쿠팡 · 와이드 팬츠 L · 1개</div>
-            <div class="order-meta"><span class="order-amount">58,000원</span><span class="order-time">11:05</span></div>
-          </div>
-          <div class="order-card">
-            <div class="order-card-top"><div><div class="order-no">A-240414-012</div><div class="order-name">박서연</div></div><span class="badge b-ship">발송완료</span></div>
-            <div class="order-product"><span class="ch ch-a"></span>에이블리 · 크롭 니트 S · 2개</div>
-            <div class="order-meta"><span class="order-amount">70,000원</span><span class="order-time">09:44</span></div>
-          </div>
-          <div class="order-card" onclick="shopTab('ship')">
-            <div class="order-card-top"><div><div class="order-no">Z-240414-033</div><div class="order-name">최유진</div></div><span class="badge b-wait">발송대기</span></div>
-            <div class="order-product"><span class="ch ch-z"></span>지그재그 · 슬랙스 M · 1개</div>
-            <div class="order-meta"><span class="order-amount">67,000원</span><span class="order-time">13:21</span></div>
-          </div>
-          <div class="order-card" onclick="shopTab('ship')">
-            <div class="order-card-top"><div><div class="order-no">C-240414-061</div><div class="order-name">한나영</div></div><span class="badge b-new">신규</span></div>
-            <div class="order-product"><span class="ch ch-c"></span>쿠팡 · 미니 스커트 XS · 1개</div>
-            <div class="order-meta"><span class="order-amount">38,000원</span><span class="order-time">14:02</span></div>
-          </div>
-        </div>
+        <div class="card mob-only" id="order-cards"></div>
 
         <!-- PC: 테이블형 목록 -->
         <div class="card pc-only">
           <div class="tbl-scroll">
             <table class="tbl">
-              <thead><tr><th style="width:32px"><input type="checkbox"></th><th style="width:130px">주문번호</th><th style="width:60px">채널</th><th style="width:70px">수취인</th><th>상품</th><th style="width:50px">수량</th><th style="width:70px">금액</th><th style="width:75px">상태</th></tr></thead>
-              <tbody>
-                <tr class="sel"><td><input type="checkbox" checked></td><td style="font-family:monospace;font-size:11px">N-240414-001</td><td><span class="ch ch-n"></span>네이버</td><td>김민지</td><td>린넨 블라우스 M</td><td>1</td><td>42,000</td><td><span class="badge b-wait">발송대기</span></td></tr>
-                <tr class="sel"><td><input type="checkbox" checked></td><td style="font-family:monospace;font-size:11px">C-240414-047</td><td><span class="ch ch-c"></span>쿠팡</td><td>이수현</td><td>와이드 팬츠 L</td><td>1</td><td>58,000</td><td><span class="badge b-wait">발송대기</span></td></tr>
-                <tr><td><input type="checkbox"></td><td style="font-family:monospace;font-size:11px">A-240414-012</td><td><span class="ch ch-a"></span>에이블리</td><td>박서연</td><td>크롭 니트 S</td><td>2</td><td>70,000</td><td><span class="badge b-ship">발송완료</span></td></tr>
-                <tr class="sel"><td><input type="checkbox" checked></td><td style="font-family:monospace;font-size:11px">Z-240414-033</td><td><span class="ch ch-z"></span>지그재그</td><td>최유진</td><td>슬랙스 M</td><td>1</td><td>67,000</td><td><span class="badge b-wait">발송대기</span></td></tr>
-                <tr class="sel"><td><input type="checkbox" checked></td><td style="font-family:monospace;font-size:11px">C-240414-061</td><td><span class="ch ch-c"></span>쿠팡</td><td>한나영</td><td>미니 스커트 XS</td><td>1</td><td>38,000</td><td><span class="badge b-new">신규</span></td></tr>
-              </tbody>
+              <thead><tr><th style="width:130px">주문번호</th><th style="width:70px">채널</th><th style="width:70px">수취인</th><th>상품</th><th style="width:50px">수량</th><th style="width:80px">금액</th><th style="width:75px">상태</th></tr></thead>
+              <tbody id="order-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -495,47 +458,25 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
           <div class="step" id="s3"><div class="step-num">STEP 3</div><div class="step-label">발송처리</div></div>
           <div class="step" id="s4"><div class="step-num">STEP 4</div><div class="step-label">플랫폼반영</div></div>
         </div>
-        <div id="ship-ok" class="alert alert-success">4건 발송처리 완료 · 각 플랫폼 배송중 자동 반영</div>
+        <div id="ship-ok" class="alert alert-success"></div>
         <div style="padding:10px 12px;background:var(--green-l);border-radius:var(--radius-sm);font-size:12px;color:#555;margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap">
-          <span>처리 대상 <b style="color:var(--green)">4건</b></span>
+          <span>발송 대기 <b style="color:var(--green)" id="ship-count">0건</b></span>
           <span>택배사 <b>CJ대한통운</b></span>
+          <span style="color:var(--text3)">운송장을 입력한 건만 발송처리됩니다</span>
         </div>
 
         <!-- 모바일: 세로 카드형 -->
         <div class="mob-only">
-          <div class="card">
-            <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
-              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><div><div style="font-size:11px;color:var(--text2);font-family:monospace">N-240414-001</div><div style="font-weight:600">김민지 · <span class="ch ch-n"></span>네이버 · 린넨 블라우스 M</div></div><span class="badge b-ready">입력완료</span></div>
-              <input class="ship-inp" placeholder="운송장 번호 (CJ대한통운)" value="5012-3456-7890" style="margin-top:6px">
-            </div>
-            <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
-              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><div><div style="font-size:11px;color:var(--text2);font-family:monospace">C-240414-047</div><div style="font-weight:600">이수현 · <span class="ch ch-c"></span>쿠팡 · 와이드 팬츠 L</div></div><span class="badge b-ready">입력완료</span></div>
-              <input class="ship-inp" placeholder="운송장 번호" value="5012-3456-7891" style="margin-top:6px">
-            </div>
-            <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
-              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><div><div style="font-size:11px;color:var(--text2);font-family:monospace">Z-240414-033</div><div style="font-weight:600">최유진 · <span class="ch ch-z"></span>지그재그 · 슬랙스 M</div></div><span class="badge b-draft" id="mb-st3">미입력</span></div>
-              <input class="ship-inp err" placeholder="운송장 번호 입력" style="margin-top:6px" oninput="if(this.value.length>5){this.classList.remove('err');document.getElementById('mb-st3').className='badge b-ready';document.getElementById('mb-st3').textContent='입력완료'}">
-            </div>
-            <div style="padding:12px 14px">
-              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><div><div style="font-size:11px;color:var(--text2);font-family:monospace">C-240414-061</div><div style="font-weight:600">한나영 · <span class="ch ch-c"></span>쿠팡 · 미니 스커트 XS</div></div><span class="badge b-ready">입력완료</span></div>
-              <input class="ship-inp" placeholder="운송장 번호" value="5012-3456-7893" style="margin-top:6px">
-            </div>
-          </div>
-          <div style="font-size:11px;color:var(--red);margin-bottom:8px">미입력 1건 · 입력 후 처리하거나 해당 건 제외 가능</div>
-          <button class="btn btn-green btn-block" onclick="completeShip()">선택 발송처리 완료</button>
+          <div class="card" id="ship-cards"></div>
+          <button class="btn btn-green btn-block" onclick="completeShip()">입력한 건 발송처리 완료</button>
         </div>
 
         <!-- PC: 테이블형 -->
         <div class="card pc-only">
           <div class="tbl-scroll">
             <table class="tbl">
-              <thead><tr><th style="width:32px"><input type="checkbox" checked></th><th style="width:125px">주문번호</th><th style="width:55px">채널</th><th style="width:65px">수취인</th><th style="width:120px">상품</th><th>운송장 (CJ)</th><th style="width:70px">상태</th></tr></thead>
-              <tbody>
-                <tr><td><input type="checkbox" checked></td><td style="font-family:monospace;font-size:11px">N-240414-001</td><td><span class="ch ch-n"></span>네이버</td><td>김민지</td><td>린넨 블라우스 M</td><td><input class="ship-inp" value="5012-3456-7890"></td><td><span class="badge b-ready">입력완료</span></td></tr>
-                <tr><td><input type="checkbox" checked></td><td style="font-family:monospace;font-size:11px">C-240414-047</td><td><span class="ch ch-c"></span>쿠팡</td><td>이수현</td><td>와이드 팬츠 L</td><td><input class="ship-inp" value="5012-3456-7891"></td><td><span class="badge b-ready">입력완료</span></td></tr>
-                <tr><td><input type="checkbox" checked></td><td style="font-family:monospace;font-size:11px">Z-240414-033</td><td><span class="ch ch-z"></span>지그재그</td><td>최유진</td><td>슬랙스 M</td><td><input class="ship-inp err" placeholder="운송장 입력"></td><td><span class="badge b-draft">미입력</span></td></tr>
-                <tr><td><input type="checkbox" checked></td><td style="font-family:monospace;font-size:11px">C-240414-061</td><td><span class="ch ch-c"></span>쿠팡</td><td>한나영</td><td>미니 스커트 XS</td><td><input class="ship-inp" value="5012-3456-7893"></td><td><span class="badge b-ready">입력완료</span></td></tr>
-              </tbody>
+              <thead><tr><th style="width:125px">주문번호</th><th style="width:70px">채널</th><th style="width:65px">수취인</th><th style="width:160px">상품</th><th>운송장 (CJ)</th><th style="width:70px">상태</th></tr></thead>
+              <tbody id="ship-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -607,56 +548,26 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
           <div style="font-size:16px;font-weight:700">재고 관리</div>
           <button class="btn btn-sm btn-green">입고처리</button>
         </div>
-        <div class="metrics">
-          <div class="metric"><div class="metric-label">전체 SKU</div><div class="metric-val">48</div></div>
-          <div class="metric"><div class="metric-label">재고 부족</div><div class="metric-val" style="color:var(--red)">3개</div><div class="metric-sub dn">10개 미만</div></div>
-          <div class="metric"><div class="metric-label">재고 경고</div><div class="metric-val" style="color:var(--amber)">5개</div></div>
-          <div class="metric"><div class="metric-label">오늘 출고</div><div class="metric-val">127개</div></div>
-        </div>
+        <div class="metrics" id="stock-metrics"></div>
         <div class="card">
-          <div class="card-head"><span class="card-title">재고 현황</span></div>
-          <div style="padding:14px">
-            <div class="stock-row"><div class="stock-name">린넨 블라우스 M</div><div class="bar-bg"><div class="bar-fill bar-ok" style="width:78%"></div></div><div class="stock-qty">78개</div></div>
-            <div class="stock-row"><div class="stock-name">와이드 팬츠 L</div><div class="bar-bg"><div class="bar-fill bar-warn" style="width:22%"></div></div><div class="stock-qty" style="color:var(--amber)">22개</div></div>
-            <div class="stock-row"><div class="stock-name">크롭 니트 S</div><div class="bar-bg"><div class="bar-fill bar-danger" style="width:5%"></div></div><div class="stock-qty" style="color:var(--red)">5개</div></div>
-            <div class="stock-row"><div class="stock-name">슬랙스 M</div><div class="bar-bg"><div class="bar-fill bar-ok" style="width:65%"></div></div><div class="stock-qty">65개</div></div>
-            <div class="stock-row"><div class="stock-name">스트라이프 셔츠 L</div><div class="bar-bg"><div class="bar-fill bar-warn" style="width:15%"></div></div><div class="stock-qty" style="color:var(--amber)">15개</div></div>
-            <div class="stock-row"><div class="stock-name">미니 스커트 XS</div><div class="bar-bg"><div class="bar-fill bar-danger" style="width:3%"></div></div><div class="stock-qty" style="color:var(--red)">3개</div></div>
-          </div>
+          <div class="card-head"><span class="card-title">재고 현황 (적은 순)</span></div>
+          <div style="padding:14px" id="stock-list"></div>
         </div>
       </div>
 
       <!-- 매출 -->
       <div class="sub-page" id="sp-sales">
         <div style="font-size:16px;font-weight:700;margin-bottom:12px">매출 추이</div>
-        <div class="metrics">
-          <div class="metric"><div class="metric-label">이번달 매출</div><div class="metric-val" style="font-size:16px">84,200만</div><div class="metric-sub up">+12.4%</div></div>
-          <div class="metric"><div class="metric-label">채널 1위</div><div class="metric-val" style="font-size:16px">네이버</div><div class="metric-sub">38%</div></div>
-          <div class="metric"><div class="metric-label">평균 주문</div><div class="metric-val" style="font-size:16px">52,400</div></div>
-          <div class="metric"><div class="metric-label">반품율</div><div class="metric-val" style="font-size:16px">1.8%</div><div class="metric-sub up">-0.3%</div></div>
-        </div>
+        <div class="metrics" id="sales-metrics"></div>
         <div class="card">
           <div class="card-head"><span class="card-title">일별 매출 (7일)</span></div>
-          <div class="mini-chart">
-            <div class="mc-wrap"><div class="mc-val">2.1M</div><div class="mc-bar" style="height:50px;background:#bbf7d0"></div><div class="mc-lbl">04/08</div></div>
-            <div class="mc-wrap"><div class="mc-val">2.5M</div><div class="mc-bar" style="height:60px;background:#bbf7d0"></div><div class="mc-lbl">04/09</div></div>
-            <div class="mc-wrap"><div class="mc-val">2.2M</div><div class="mc-bar" style="height:53px;background:#bbf7d0"></div><div class="mc-lbl">04/10</div></div>
-            <div class="mc-wrap"><div class="mc-val">3.1M</div><div class="mc-bar" style="height:65px;background:#86efac"></div><div class="mc-lbl">04/11</div></div>
-            <div class="mc-wrap"><div class="mc-val">2.8M</div><div class="mc-bar" style="height:62px;background:#86efac"></div><div class="mc-lbl">04/12</div></div>
-            <div class="mc-wrap"><div class="mc-val">3.5M</div><div class="mc-bar" style="height:70px;background:#4ade80"></div><div class="mc-lbl">04/13</div></div>
-            <div class="mc-wrap"><div class="mc-val">3.8M</div><div class="mc-bar" style="height:72px;background:var(--green)"></div><div class="mc-lbl" style="color:var(--green);font-weight:700">오늘</div></div>
-          </div>
+          <div class="mini-chart" id="sales-chart"></div>
         </div>
         <div class="card">
-          <div class="card-head"><span class="card-title">채널별 비중</span></div>
+          <div class="card-head"><span class="card-title">채널별 비중 (이번달)</span></div>
           <table class="tbl">
             <thead><tr><th>채널</th><th>매출</th><th>비중</th><th>주문</th></tr></thead>
-            <tbody>
-              <tr><td><span class="ch ch-n"></span>네이버</td><td>14,600만</td><td>38%</td><td>48건</td></tr>
-              <tr><td><span class="ch ch-c"></span>쿠팡</td><td>10,800만</td><td>28%</td><td>36건</td></tr>
-              <tr><td><span class="ch ch-a"></span>에이블리</td><td>7,700만</td><td>20%</td><td>27건</td></tr>
-              <tr><td><span class="ch ch-z"></span>지그재그</td><td>5,100만</td><td>14%</td><td>16건</td></tr>
-            </tbody>
+            <tbody id="sales-channels"></tbody>
           </table>
         </div>
       </div>
@@ -671,29 +582,15 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
           <div style="font-size:16px;font-weight:700">OEM 주문 관리</div>
           <button class="btn btn-sm btn-amber" onclick="openModal('m-oem-order')">신규 등록</button>
         </div>
-        <div class="metrics">
-          <div class="metric"><div class="metric-label">이달 수주</div><div class="metric-val" style="font-size:16px">4,280만</div><div class="metric-sub up">+8.2%</div></div>
-          <div class="metric"><div class="metric-label">진행 중</div><div class="metric-val">12건</div></div>
-          <div class="metric"><div class="metric-label">납품 예정</div><div class="metric-val">8건</div><div class="metric-sub">4월 말</div></div>
-          <div class="metric"><div class="metric-label">미정산</div><div class="metric-val" style="color:var(--amber)">3건</div></div>
-        </div>
+        <div class="metrics" id="oem-metrics"></div>
         <div class="card">
           <!-- 모바일: 카드형 -->
-          <div class="mob-only">
-            <div class="order-card"><div class="order-card-top"><div><div class="order-no">OEM-2404-018</div><div class="order-name">한강어패럴</div></div><span class="badge b-transit">한국운송중</span></div><div class="order-product">린넨 블라우스 500pcs</div><div class="order-meta"><span class="order-amount">8,500,000원</span><span class="order-time">납품 04/25</span></div></div>
-            <div class="order-card"><div class="order-card-top"><div><div class="order-no">OEM-2404-017</div><div class="order-name">미래패션</div></div><span class="badge b-ready">출고준비</span></div><div class="order-product">와이드 팬츠 300pcs</div><div class="order-meta"><span class="order-amount">6,200,000원</span><span class="order-time">납품 04/20</span></div></div>
-            <div class="order-card"><div class="order-card-top"><div><div class="order-no">OEM-2404-016</div><div class="order-name">신세계유통</div></div><span class="badge b-done">정산완료</span></div><div class="order-product">크롭 니트 1000pcs</div><div class="order-meta"><span class="order-amount">15,000,000원</span><span class="order-time">완료</span></div></div>
-          </div>
+          <div class="mob-only" id="oem-cards"></div>
           <!-- PC: 테이블형 -->
           <div class="pc-only">
             <table class="tbl">
               <thead><tr><th style="width:120px">주문번호</th><th style="width:90px">거래처</th><th>내용</th><th style="width:90px">금액</th><th style="width:80px">납품예정</th><th style="width:75px">상태</th></tr></thead>
-              <tbody>
-                <tr><td style="font-family:monospace;font-size:11px">OEM-2404-018</td><td>한강어패럴</td><td>린넨 블라우스 500pcs</td><td>8,500,000</td><td>04/25</td><td><span class="badge b-transit">한국운송중</span></td></tr>
-                <tr><td style="font-family:monospace;font-size:11px">OEM-2404-017</td><td>미래패션</td><td>와이드 팬츠 300pcs</td><td>6,200,000</td><td>04/20</td><td><span class="badge b-ready">출고준비</span></td></tr>
-                <tr><td style="font-family:monospace;font-size:11px">OEM-2404-016</td><td>신세계유통</td><td>크롭 니트 1000pcs</td><td>15,000,000</td><td>완료</td><td><span class="badge b-done">정산완료</span></td></tr>
-                <tr><td style="font-family:monospace;font-size:11px">OEM-2404-015</td><td>한강어패럴</td><td>슬랙스 200pcs</td><td>4,800,000</td><td>04/30</td><td><span class="badge b-prod">공장준비</span></td></tr>
-              </tbody>
+              <tbody id="oem-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -705,15 +602,11 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
           <div style="font-size:16px;font-weight:700">해운 진행상황</div>
           <button class="btn btn-sm btn-amber" onclick="openModal('m-ship-update')">업데이트</button>
         </div>
-        <select id="prog-sel" onchange="renderTL(this.value)" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;margin-bottom:12px;background:var(--white);outline:none">
-          <option value="018">OEM-2404-018 · 한강어패럴 · 린넨 블라우스</option>
-          <option value="015">OEM-2404-015 · 한강어패럴 · 슬랙스</option>
-          <option value="016">OEM-2404-016 · 신세계유통 · 크롭 니트</option>
-        </select>
+        <select id="prog-sel" onchange="renderTL(this.value)" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;margin-bottom:12px;background:var(--white);outline:none"></select>
         <div class="card">
           <div class="card-head">
-            <span class="card-title" id="tl-title">OEM-2404-018 · 한강어패럴</span>
-            <span class="badge" id="tl-badge">한국 운송중</span>
+            <span class="card-title" id="tl-title"></span>
+            <span class="badge" id="tl-badge"></span>
           </div>
           <div style="padding:16px 14px 14px 38px">
             <div class="timeline" id="tl-body"></div>
@@ -727,23 +620,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
           <div style="font-size:16px;font-weight:700">견적서 관리</div>
           <button class="btn btn-sm btn-amber" onclick="openModal('m-quote')">견적서 작성</button>
         </div>
-        <div class="card">
-          <div class="order-card" onclick="openModal('m-quote-view')">
-            <div class="order-card-top"><div><div class="order-no">QT-2404-009</div><div class="order-name">한강어패럴</div></div><span class="badge b-sent">발송완료</span></div>
-            <div class="order-product">여름 신상 3종 · 9,305,000원</div>
-            <div class="order-meta"><span style="font-size:11px;color:var(--green);font-weight:600">PDF 출력</span><span class="order-time">2025.04.14</span></div>
-          </div>
-          <div class="order-card">
-            <div class="order-card-top"><div><div class="order-no">QT-2404-008</div><div class="order-name">미래패션</div></div><span class="badge b-conf">확정</span></div>
-            <div class="order-product">가을 컬렉션 · 7,150,000원</div>
-            <div class="order-meta"><span style="font-size:11px;color:var(--green);font-weight:600">PDF 출력</span><span class="order-time">2025.04.10</span></div>
-          </div>
-          <div class="order-card">
-            <div class="order-card-top"><div><div class="order-no">QT-2404-007</div><div class="order-name">드림패션</div></div><span class="badge b-draft">작성중</span></div>
-            <div class="order-product">니트 시리즈 5종</div>
-            <div class="order-meta"><span style="font-size:11px;color:var(--text3)">미완성</span><span class="order-time">2025.04.08</span></div>
-          </div>
-        </div>
+        <div class="card" id="quote-list"></div>
       </div>
 
       <!-- 거래처 -->
@@ -752,51 +629,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
           <div style="font-size:16px;font-weight:700">거래처 관리</div>
           <button class="btn btn-sm btn-amber" onclick="openModal('m-client')">거래처 등록</button>
         </div>
-        <div class="card">
-          <div class="client-card">
-            <div class="client-name">한강어패럴</div>
-            <div class="client-addr">📍 서울특별시 중구 을지로 456, 3층 (을지로빌딩)</div>
-            <div class="client-meta">
-              <span><b>사업자</b>123-45-67890</span><span><b>대표</b>김한강</span>
-              <span><b>연락처</b>010-1234-5678</span><span><b>이메일</b>order@hangang.co.kr</span>
-            </div>
-            <div class="client-goal"><span style="font-size:12px;color:var(--text2)">이달 목표 2,000만원 · 91%</span><span class="client-amount">18,200,000원</span></div>
-            <div class="prog-bg"><div class="prog-fill" style="width:91%"></div></div>
-            <div class="client-btns">
-              <button class="btn btn-sm" onclick="openModal('m-client-edit')">수정</button>
-              <button class="btn btn-sm btn-outline" onclick="oemTab('quote')">견적서</button>
-              <button class="btn btn-sm" onclick="oemTab('order')">주문</button>
-            </div>
-          </div>
-          <div class="client-card">
-            <div class="client-name">신세계유통</div>
-            <div class="client-addr">📍 서울특별시 중구 소공로 63, 신세계백화점 본점 12층</div>
-            <div class="client-meta">
-              <span><b>사업자</b>234-56-78901</span><span><b>대표</b>이신세</span>
-              <span><b>연락처</b>010-2345-6789</span><span><b>이메일</b>buy@shinsegae.com</span>
-            </div>
-            <div class="client-goal"><span style="font-size:12px;color:var(--text2)">이달 목표 1,500만원 · 100%</span><span class="client-amount">15,000,000원</span></div>
-            <div class="prog-bg"><div class="prog-fill" style="width:100%"></div></div>
-            <div class="client-btns">
-              <button class="btn btn-sm" onclick="openModal('m-client-edit')">수정</button>
-              <button class="btn btn-sm btn-outline" onclick="oemTab('quote')">견적서</button>
-            </div>
-          </div>
-          <div class="client-card">
-            <div class="client-name">미래패션</div>
-            <div class="client-addr">📍 경기도 성남시 분당구 판교역로 235, 미래타워 7층</div>
-            <div class="client-meta">
-              <span><b>사업자</b>345-67-89012</span><span><b>대표</b>박미래</span>
-              <span><b>연락처</b>010-3456-7890</span><span><b>이메일</b>info@miraefashion.kr</span>
-            </div>
-            <div class="client-goal"><span style="font-size:12px;color:var(--text2)">이달 목표 1,000만원 · 62%</span><span class="client-amount">6,200,000원</span></div>
-            <div class="prog-bg"><div class="prog-fill" style="width:62%"></div></div>
-            <div class="client-btns">
-              <button class="btn btn-sm" onclick="openModal('m-client-edit')">수정</button>
-              <button class="btn btn-sm btn-outline" onclick="oemTab('quote')">견적서</button>
-            </div>
-          </div>
-        </div>
+        <div class="card" id="client-list"></div>
       </div>
     </div><!-- /page-oem -->
   </div><!-- /content -->
@@ -831,9 +664,9 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
     <div class="modal-drag"></div>
     <div class="modal-inner">
       <div style="font-size:14px;font-weight:700;margin-bottom:4px" id="more-username">관리자</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:16px" id="more-sync">마지막 동기화 3분 전</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px" id="more-sync"></div>
       <div style="display:flex;flex-direction:column;gap:2px">
-        <button class="btn" style="text-align:left;padding:12px 4px;border:none;border-bottom:1px solid var(--border);border-radius:0;font-size:14px" onclick="closeModal('m-more')">수동 동기화</button>
+        <button class="btn" style="text-align:left;padding:12px 4px;border:none;border-bottom:1px solid var(--border);border-radius:0;font-size:14px" onclick="closeModal('m-more');loadAll()">새로고침</button>
         <button class="btn" style="text-align:left;padding:12px 4px;border:none;border-bottom:1px solid var(--border);border-radius:0;font-size:14px" onclick="closeModal('m-more')">알림 설정</button>
         <button class="btn" style="text-align:left;padding:12px 4px;border:none;border-radius:0;font-size:14px;color:var(--red)" onclick="closeModal('m-more');doLogout()">로그아웃</button>
       </div>
@@ -848,7 +681,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
     <div class="modal-inner">
       <div class="modal-title">견적서 작성</div>
       <div class="form-grid">
-        <div class="form-field"><label>거래처</label><select><option>한강어패럴</option><option>신세계유통</option><option>미래패션</option></select></div>
+        <div class="form-field"><label>거래처</label><select class="client-select"></select></div>
         <div class="form-field"><label>유효기간</label><input type="date" value="2025-04-30"></div>
       </div>
       <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px">품목 (최대 10개)</div>
@@ -878,25 +711,21 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
   <div class="modal-sheet modal-pc">
     <div class="modal-drag"></div>
     <div class="modal-inner">
-      <div class="modal-title">견적서 QT-2404-009</div>
+      <div class="modal-title" id="qv-title">견적서</div>
       <div style="background:var(--green);color:#fff;padding:12px 14px;border-radius:10px;margin-bottom:12px">
         <div style="font-size:16px;font-weight:700">세모코리아</div>
-        <div style="font-size:11px;opacity:.85;margin-top:2px">QT-2404-009 · 2025.04.14 발행 · 유효: 04/30</div>
+        <div style="font-size:11px;opacity:.85;margin-top:2px" id="qv-sub"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-        <div style="background:var(--green-l);padding:10px;border-radius:8px;font-size:12px"><div style="font-weight:700;color:var(--green);font-size:11px;margin-bottom:4px">수신</div><div style="font-weight:700">한강어패럴 귀중</div><div style="color:var(--text2);font-size:11px;margin-top:2px">서울 중구 을지로 456</div></div>
+        <div style="background:var(--green-l);padding:10px;border-radius:8px;font-size:12px"><div style="font-weight:700;color:var(--green);font-size:11px;margin-bottom:4px">수신</div><div style="font-weight:700" id="qv-client"></div><div style="color:var(--text2);font-size:11px;margin-top:2px" id="qv-addr"></div></div>
         <div style="background:var(--green-l);padding:10px;border-radius:8px;font-size:12px"><div style="font-weight:700;color:var(--green);font-size:11px;margin-bottom:4px">공급자</div><div style="font-weight:700">세모코리아</div><div style="color:var(--text2);font-size:11px;margin-top:2px">경기 김포시 김포한강10로133번길 107</div></div>
       </div>
-      <div style="background:var(--green);color:#fff;padding:8px 12px;border-radius:6px;display:flex;justify-content:space-between;margin-bottom:10px;font-size:13px"><span>합계 (VAT포함)</span><span style="font-weight:700">₩ 9,305,000 원</span></div>
+      <div style="background:var(--green);color:#fff;padding:8px 12px;border-radius:6px;display:flex;justify-content:space-between;margin-bottom:10px;font-size:13px"><span>합계 (VAT포함)</span><span style="font-weight:700" id="qv-total"></span></div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="background:#f5f5f5"><th style="padding:6px;border:1px solid var(--border);text-align:left">품목</th><th style="padding:6px;border:1px solid var(--border);text-align:center">수량</th><th style="padding:6px;border:1px solid var(--border);text-align:right">금액</th></tr></thead>
-        <tbody>
-          <tr><td style="padding:6px;border:1px solid var(--border)">린넨 블라우스 (화이트/M)</td><td style="padding:6px;border:1px solid var(--border);text-align:center">200</td><td style="padding:6px;border:1px solid var(--border);text-align:right">3,400,000</td></tr>
-          <tr><td style="padding:6px;border:1px solid var(--border)">와이드 팬츠 (블랙/L)</td><td style="padding:6px;border:1px solid var(--border);text-align:center">100</td><td style="padding:6px;border:1px solid var(--border);text-align:right">2,100,000</td></tr>
-          <tr><td style="padding:6px;border:1px solid var(--border)">크롭 니트 (베이지/S)</td><td style="padding:6px;border:1px solid var(--border);text-align:center">150</td><td style="padding:6px;border:1px solid var(--border);text-align:right">2,550,000</td></tr>
-        </tbody>
+        <tbody id="qv-items"></tbody>
       </table>
-      <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px">공급가액 8,050,000 · 부가세 805,000 · 배송 450,000</div>
+      <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px" id="qv-sum"></div>
       <div id="m-pdf-msg" style="display:none;margin-top:10px;padding:10px 12px;background:var(--green-l);border-radius:8px;font-size:12px;color:#15803d">PDF 다운로드 완료 (실서버 연동 시 자동 생성)</div>
     </div>
     <div class="modal-footer">
@@ -912,7 +741,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
     <div class="modal-drag"></div>
     <div class="modal-inner">
       <div class="modal-title">OEM 신규 주문 등록</div>
-      <div class="form-grid"><div class="form-field"><label>거래처</label><select><option>한강어패럴</option><option>신세계유통</option><option>미래패션</option></select></div><div class="form-field"><label>납품예정일</label><input type="date" value="2025-04-30"></div></div>
+      <div class="form-grid"><div class="form-field"><label>거래처</label><select class="client-select"></select></div><div class="form-field"><label>납품예정일</label><input type="date" value="2025-04-30"></div></div>
       <div class="form-field"><label>주문 내용</label><input placeholder="예: 린넨 블라우스 500pcs"></div>
       <div class="form-grid"><div class="form-field"><label>수량</label><input type="number" placeholder="0" inputmode="numeric"></div><div class="form-field"><label>단가</label><input type="number" placeholder="0" inputmode="numeric"></div></div>
       <div class="form-field"><label>메모</label><textarea rows="2"></textarea></div>
@@ -960,7 +789,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
     <div class="modal-drag"></div>
     <div class="modal-inner">
       <div class="modal-title">진행상황 업데이트</div>
-      <div class="form-field"><label>주문 선택</label><select><option>OEM-2404-018 · 한강어패럴</option><option>OEM-2404-015 · 한강어패럴</option></select></div>
+      <div class="form-field"><label>주문 선택</label><select id="su-order"></select></div>
       <div class="form-field"><label>현재 단계</label><select><option>공장 출고 준비중</option><option>중국 물류 대기중</option><option selected>한국 운송중 (해운)</option><option>통관중</option><option>통관 완료</option><option>고객 출고 완료</option></select></div>
       <div class="form-grid"><div class="form-field"><label>날짜</label><input type="date" value="2025-04-14"></div><div class="form-field"><label>예상 도착일</label><input type="date" value="2025-04-22"></div></div>
       <div class="form-field"><label>메모</label><input placeholder="예: 부산항 입항 완료"></div>
@@ -1015,7 +844,7 @@ async function doLogin() {
   document.getElementById('more-username').textContent = curUser.name + ' (' + curUser.username + ')';
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('admin-screen').style.display = 'block';
-  startSync(); mInitItems(); renderTL('018');
+  startSync(); mInitItems(); loadAll();
 }
 
 function doLogout() {
@@ -1027,10 +856,12 @@ function doLogout() {
   document.getElementById('login-err').textContent = '';
 }
 
-// ── 동기화 타이머 ──
-let sec = 180;
+// ── 화면 새로고침 타이머 (마지막으로 데이터를 불러온 뒤 경과 시간) ──
+let sec = 0;
+let syncTimer = null;
 function startSync() {
-  setInterval(() => {
+  if (syncTimer) return;
+  syncTimer = setInterval(() => {
     sec++;
     const m = Math.floor(sec/60), s = sec%60;
     const t = sec < 60 ? `${sec}초 전` : `${m}분 ${s>0?s+'초 ':''}전`;
@@ -1073,13 +904,6 @@ function onFab() {
   const isShop = document.getElementById('page-shop').classList.contains('active');
   if (isShop) openModal('m-quote');
   else openModal('m-oem-order');
-}
-
-// ── 배송처리 ──
-function completeShip() {
-  document.getElementById('s3').classList.add('done');
-  document.getElementById('s4').classList.add('done');
-  document.getElementById('ship-ok').style.display = 'block';
 }
 
 // ── 송장출력 ──
@@ -1163,46 +987,356 @@ function mCalc() {
 // ── 해운 진행 타임라인 ──
 const STAGES = ['공장 출고 준비중','중국 물류 대기중','한국 운송중 (해운)','통관중','통관 완료','고객 출고 완료'];
 const STAGE_DESC = ['중국 공장 생산 완료 후 출고 준비','중국 현지 물류센터 입고·선적 대기','해상 운송 중 (중국→한국)','부산/인천항 도착, 세관 통관 진행','통관 완료, 국내 배송 준비','거래처 납품 완료'];
-const TL_DATA = {
-  '018': { cur:2, title:'OEM-2404-018 · 한강어패럴', badge:'b-transit', status:'한국 운송중',
-           dates:['2025-04-05','2025-04-08','2025-04-12',null,null,null],
-           memos:['출고 완료 (500pcs)','광저우항 출발','부산항 예정 04/22',null,null,null], eta:'2025-04-22' },
-  '015': { cur:0, title:'OEM-2404-015 · 한강어패럴', badge:'b-prod', status:'공장 출고 준비중',
-           dates:['2025-04-14',null,null,null,null,null], memos:['생산 완료, 출고 준비 중',null,null,null,null,null], eta:'2025-05-10' },
-  '016': { cur:5, title:'OEM-2404-016 · 신세계유통', badge:'b-ready', status:'고객 출고 완료',
-           dates:['2025-03-20','2025-03-24','2025-03-30','2025-04-05','2025-04-08','2025-04-10'],
-           memos:['출고(1000pcs)','인천항 출발','부산항 입항','통관 신청','통관 완료','납품 완료'], eta:'-' },
+// oem_orders.status → 타임라인 단계 (received: 접수, 0~5: STAGES, settled: 정산완료)
+const OEM_STATUS = {
+  received:  { stage: -1, label: '주문 접수',   badge: 'b-new' },
+  factory:   { stage: 0,  label: '공장준비',    badge: 'b-prod' },
+  china:     { stage: 1,  label: '중국물류',    badge: 'b-prod' },
+  sea:       { stage: 2,  label: '한국운송중',  badge: 'b-transit' },
+  customs:   { stage: 3,  label: '통관중',      badge: 'b-transit' },
+  cleared:   { stage: 4,  label: '통관완료',    badge: 'b-ready' },
+  delivered: { stage: 5,  label: '납품완료',    badge: 'b-ready' },
+  settled:   { stage: 5,  label: '정산완료',    badge: 'b-done' },
+  cancelled: { stage: -1, label: '취소',        badge: 'b-done' }
 };
-function renderTL(key) {
-  const d = TL_DATA[key];
-  if (!d) return;
-  document.getElementById('tl-title').textContent = d.title;
-  const badge = document.getElementById('tl-badge');
-  badge.className = 'badge ' + d.badge;
-  badge.textContent = d.status;
+function oemStatus(s) { return OEM_STATUS[s] || { stage: -1, label: s || '-', badge: 'b-draft' }; }
+
+function renderTL(id) {
   const body = document.getElementById('tl-body');
-  body.innerHTML = '';
-  STAGES.forEach((s, i) => {
-    const cls = i < d.cur ? 'done' : i === d.cur ? 'active' : 'pending';
-    const div = document.createElement('div');
-    div.className = 'tl-step ' + cls;
-    div.innerHTML = `<div class="tl-dot">${i<d.cur?'✓':i===d.cur?'▶':''}</div>
+  const badge = document.getElementById('tl-badge');
+  const o = (DATA.oem?.orders || []).find(x => x.id === id);
+  if (!o) {
+    document.getElementById('tl-title').textContent = '';
+    badge.className = 'badge'; badge.textContent = '';
+    body.innerHTML = emptyMsg('진행 중인 OEM 주문이 없습니다');
+    return;
+  }
+  const st = oemStatus(o.status);
+  const cur = st.stage;
+  document.getElementById('tl-title').textContent = `${o.order_no} · ${o.oem_clients?.name || ''}`;
+  badge.className = 'badge ' + st.badge;
+  badge.textContent = st.label;
+  const ship = (o.oem_shipments || [])[0] || {};
+  // 단계별 이력 테이블이 아직 없어 알 수 있는 날짜만 표시한다
+  const dates = [o.order_dt, ship.shipped_dt, null, null, null, o.delivered_dt || ship.delivered_dt];
+  body.innerHTML = STAGES.map((s, i) => {
+    const cls = i < cur || (i === cur && cur === 5) ? 'done' : i === cur ? 'active' : 'pending';
+    return `<div class="tl-step ${cls}"><div class="tl-dot">${cls==='done'?'✓':cls==='active'?'▶':''}</div>
       <div class="tl-content">
         <div class="tl-title">${s}</div>
         <div style="font-size:11px;color:var(--text2);margin-bottom:3px">${STAGE_DESC[i]}</div>
         <div class="tl-meta">
-          ${d.dates[i]?`<span>📅 ${d.dates[i]}</span>`:'<span style="color:var(--text3)">📅 예정</span>'}
-          ${d.memos[i]?`<span>💬 ${d.memos[i]}</span>`:''}
-          ${i===d.cur&&d.eta?`<span style="color:var(--amber);font-weight:600">⏱ 예상 도착: ${d.eta}</span>`:''}
+          ${dates[i] && i <= cur ? `<span>📅 ${esc(fmtDate(dates[i]))}</span>` : ''}
+          ${i === cur && ship.memo ? `<span>💬 ${esc(ship.memo)}</span>` : ''}
+          ${i === cur && cur < 5 && o.expected_dt ? `<span style="color:var(--amber);font-weight:600">⏱ 납품 예정: ${esc(fmtDate(o.expected_dt))}</span>` : ''}
         </div>
-      </div>`;
-    body.appendChild(div);
+      </div></div>`;
+  }).join('');
+}
+
+// ══════════ 실데이터 연동 (/api/data) ══════════
+const DATA = { shop: null, stock: null, sales: null, oem: null };
+const CH_CLS = { naver: 'ch-n', coupang: 'ch-c', ably: 'ch-a', zigzag: 'ch-z' };
+const ORDER_STATUS = {
+  new:       ['신규', 'b-new'],
+  confirmed: ['발송대기', 'b-wait'],
+  preparing: ['발송대기', 'b-wait'],
+  ready:     ['발송대기', 'b-wait'],
+  shipped:   ['발송완료', 'b-ship'],
+  delivered: ['배송완료', 'b-done'],
+  cancelled: ['취소', 'b-done'],
+  returned:  ['반품', 'b-done']
+};
+const PENDING_STATUS = ['new', 'confirmed', 'preparing', 'ready'];
+const QUOTE_STATUS = { draft: ['작성중', 'b-draft'], sent: ['발송완료', 'b-sent'], confirmed: ['확정', 'b-conf'] };
+let orderFilter = 'all';
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+const won = n => (Number(n) || 0).toLocaleString('ko-KR');
+function man(n) { // 만원 단위 표시
+  n = Number(n) || 0;
+  return n >= 10000 ? Math.round(n / 10000).toLocaleString('ko-KR') + '만' : won(n);
+}
+function fmtDate(s) { return s ? String(s).slice(0, 10) : ''; }
+function fmtTime(s) {
+  if (!s) return '';
+  const d = String(s).slice(0, 10), today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  return d === today ? String(s).slice(11, 16) : d.slice(5).replace('-', '/');
+}
+function emptyMsg(t) { return `<div style="padding:24px 14px;text-align:center;color:var(--text3);font-size:13px">${esc(t)}</div>`; }
+function metric(label, val, sub = '', style = '', subCls = '') {
+  return `<div class="metric"><div class="metric-label">${esc(label)}</div><div class="metric-val" style="${style}">${esc(val)}</div>${sub ? `<div class="metric-sub ${subCls}">${esc(sub)}</div>` : ''}</div>`;
+}
+function chTag(ch) { return `<span class="ch ${CH_CLS[ch?.code] || ''}"></span>${esc(ch?.name?.replace(' 스마트스토어', '') || '-')}`; }
+function itemsText(items) {
+  if (!items || !items.length) return '-';
+  const f = items[0];
+  const t = f.product_name + (f.option_info ? ' ' + f.option_info : '');
+  return items.length > 1 ? `${t} 외 ${items.length - 1}건` : t;
+}
+const qtySum = items => (items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+
+async function loadData(type) {
+  try {
+    const res = await apiFetch('/data?type=' + type);
+    if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return null; }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || res.status);
+    DATA[type] = body;
+    return body;
+  } catch (e) {
+    console.error('[data]', type, e);
+    return { _error: e.message };
+  }
+}
+
+async function loadAll() {
+  const loading = emptyMsg('불러오는 중…');
+  ['order-cards', 'ship-cards', 'stock-list', 'oem-cards', 'quote-list', 'client-list'].forEach(id => document.getElementById(id).innerHTML = loading);
+  ['order-tbody', 'ship-tbody', 'oem-tbody'].forEach(id => document.getElementById(id).innerHTML = `<tr><td colspan="7">${loading}</td></tr>`);
+  const [shop, stock, sales, oem] = await Promise.all(['shop', 'stock', 'sales', 'oem'].map(loadData));
+  if (!curUser) return; // 로그아웃됨
+  renderShop(shop); renderStock(stock); renderSales(sales); renderOem(oem);
+  sec = 0;
+}
+
+function errorFill(ids, tbodies, msg) {
+  ids.forEach(id => document.getElementById(id).innerHTML = emptyMsg('불러오기 실패: ' + msg));
+  tbodies.forEach(id => document.getElementById(id).innerHTML = `<tr><td colspan="7">${emptyMsg('불러오기 실패: ' + msg)}</td></tr>`);
+}
+
+// ── 쇼핑몰: 주문 현황 + 배송 처리 ──
+function renderShop(d) {
+  if (!d || d._error) {
+    document.getElementById('shop-metrics').innerHTML = '';
+    return errorFill(['order-cards', 'ship-cards'], ['order-tbody', 'ship-tbody'], d?._error || '');
+  }
+  const m = d.metrics;
+  document.getElementById('shop-metrics').innerHTML =
+    metric('오늘 주문', won(m.today_orders), '오늘') +
+    metric('발송 대기', won(m.pending) + '건', m.pending ? '처리 필요' : '', 'color:var(--amber)', 'dn') +
+    metric('발송 완료', won(m.shipped_today) + '건', '오늘', 'color:#16a34a') +
+    metric('오늘 매출', man(m.today_sales), '', 'font-size:16px');
+  renderOrders();
+  renderShipList();
+}
+
+function setOrderFilter(f) {
+  orderFilter = f;
+  document.querySelectorAll('#order-filters .fpill').forEach(b => b.classList.toggle('on', b.dataset.f === f));
+  renderOrders();
+}
+
+function renderOrders() {
+  const all = DATA.shop?.orders || [];
+  const list = orderFilter === 'all' ? all
+    : orderFilter === 'pending' ? all.filter(o => PENDING_STATUS.includes(o.status))
+    : all.filter(o => o.channels?.code === orderFilter);
+  const cards = document.getElementById('order-cards');
+  const tbody = document.getElementById('order-tbody');
+  if (!list.length) {
+    const msg = all.length ? '해당 조건의 주문이 없습니다' : '아직 수집된 주문이 없습니다';
+    cards.innerHTML = emptyMsg(msg);
+    tbody.innerHTML = `<tr><td colspan="7">${emptyMsg(msg)}</td></tr>`;
+    return;
+  }
+  cards.innerHTML = list.map(o => {
+    const [lbl, cls] = ORDER_STATUS[o.status] || [o.status, 'b-draft'];
+    const pend = PENDING_STATUS.includes(o.status);
+    return `<div class="order-card"${pend ? ` onclick="shopTab('ship')"` : ''}>
+      <div class="order-card-top"><div><div class="order-no">${esc(o.channel_order_no)}</div><div class="order-name">${esc(o.receiver_name)}</div></div><span class="badge ${cls}">${esc(lbl)}</span></div>
+      <div class="order-product">${chTag(o.channels)} · ${esc(itemsText(o.order_items))} · ${qtySum(o.order_items)}개</div>
+      <div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">${esc(fmtTime(o.order_dt))}</span></div>
+    </div>`;
+  }).join('');
+  tbody.innerHTML = list.map(o => {
+    const [lbl, cls] = ORDER_STATUS[o.status] || [o.status, 'b-draft'];
+    return `<tr><td style="font-family:monospace;font-size:11px">${esc(o.channel_order_no)}</td><td>${chTag(o.channels)}</td><td>${esc(o.receiver_name)}</td><td>${esc(itemsText(o.order_items))}</td><td>${qtySum(o.order_items)}</td><td>${won(o.total_amount)}</td><td><span class="badge ${cls}">${esc(lbl)}</span></td></tr>`;
+  }).join('');
+}
+
+function renderShipList() {
+  const list = DATA.shop?.pending || [];
+  document.getElementById('ship-count').textContent = list.length + '건';
+  const cards = document.getElementById('ship-cards');
+  const tbody = document.getElementById('ship-tbody');
+  if (!list.length) {
+    cards.innerHTML = emptyMsg('발송 대기 주문이 없습니다');
+    tbody.innerHTML = `<tr><td colspan="6">${emptyMsg('발송 대기 주문이 없습니다')}</td></tr>`;
+    return;
+  }
+  // 모바일 카드와 PC 표가 같은 주문을 보여주므로 입력값을 서로 맞춘다 (data-oid로 연결)
+  const inp = o => `<input class="ship-inp err" data-oid="${esc(o.id)}" placeholder="운송장 번호 (CJ대한통운)" oninput="onShipInput(this)">`;
+  cards.innerHTML = list.map(o => `<div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><div><div style="font-size:11px;color:var(--text2);font-family:monospace">${esc(o.channel_order_no)}</div><div style="font-weight:600">${esc(o.receiver_name)} · ${chTag(o.channels)} · ${esc(itemsText(o.order_items))}</div></div><span class="badge b-draft" data-st="${esc(o.id)}">미입력</span></div>
+      ${inp(o).replace('class="ship-inp err"', 'class="ship-inp err" style="margin-top:6px"')}
+    </div>`).join('');
+  tbody.innerHTML = list.map(o => `<tr><td style="font-family:monospace;font-size:11px">${esc(o.channel_order_no)}</td><td>${chTag(o.channels)}</td><td>${esc(o.receiver_name)}</td><td>${esc(itemsText(o.order_items))}</td><td>${inp(o)}</td><td><span class="badge b-draft" data-st="${esc(o.id)}">미입력</span></td></tr>`).join('');
+}
+
+function onShipInput(el) {
+  const oid = el.dataset.oid, v = el.value;
+  document.querySelectorAll(`.ship-inp[data-oid="${oid}"]`).forEach(i => { if (i !== el) i.value = v; i.classList.toggle('err', v.trim().length < 6); });
+  document.querySelectorAll(`[data-st="${oid}"]`).forEach(b => {
+    const ok = v.trim().length >= 6;
+    b.className = 'badge ' + (ok ? 'b-ready' : 'b-draft');
+    b.textContent = ok ? '입력완료' : '미입력';
   });
 }
-document.addEventListener('DOMContentLoaded', () => {
-  const sel = document.getElementById('prog-sel');
-  if (sel) sel.addEventListener('change', () => renderTL(sel.value));
-});
+
+// ── 배송처리: 입력한 운송장만 /api/shipments/bulk 로 전송 ──
+async function completeShip() {
+  const map = {};
+  document.querySelectorAll('#ship-tbody .ship-inp').forEach(i => { const v = i.value.trim(); if (v.length >= 6) map[i.dataset.oid] = v; });
+  const shipments = Object.entries(map).map(([order_id, tracking_no]) => ({ order_id, tracking_no, carrier: 'CJ대한통운' }));
+  const ok = document.getElementById('ship-ok');
+  if (!shipments.length) { alert('운송장 번호를 입력한 주문이 없습니다.'); return; }
+  if (!confirm(`${shipments.length}건을 발송처리하고 각 쇼핑몰에 배송중으로 반영합니다. 진행할까요?`)) return;
+  document.getElementById('s3').classList.add('done');
+  try {
+    const res = await apiFetch('/shipments/bulk', { method: 'POST', body: JSON.stringify({ shipments }) });
+    const r = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(r.error || res.status);
+    if (!r.platform_failed) document.getElementById('s4').classList.add('done');
+    ok.textContent = `${r.success}건 발송처리 완료` +
+      (r.platform_failed ? ` · 쇼핑몰 반영 실패 ${r.platform_failed}건 (각 쇼핑몰에서 직접 확인 필요)` : ' · 각 쇼핑몰 배송중 반영') +
+      (r.failed ? ` · 처리 실패 ${r.failed}건` : '');
+    ok.style.display = 'block';
+    await loadData('shop');
+    renderShop(DATA.shop);
+  } catch (e) {
+    alert('발송처리 실패: ' + e.message);
+  }
+}
+
+// ── 재고 ──
+function renderStock(d) {
+  if (!d || d._error) { document.getElementById('stock-metrics').innerHTML = ''; return errorFill(['stock-list'], [], d?._error || ''); }
+  const m = d.metrics;
+  document.getElementById('stock-metrics').innerHTML =
+    metric('전체 SKU', won(m.sku)) +
+    metric('재고 부족', m.danger + '개', '알림 수량 미만', 'color:var(--red)', 'dn') +
+    metric('재고 경고', m.warning + '개', '', 'color:var(--amber)') +
+    metric('오늘 출고', won(m.out_today) + '개');
+  const el = document.getElementById('stock-list');
+  if (!d.items.length) { el.innerHTML = emptyMsg('등록된 상품이 없습니다'); return; }
+  const max = Math.max(100, ...d.items.map(i => i.stock_qty));
+  el.innerHTML = d.items.map(i => {
+    const lvl = i.stock_qty < i.alert_qty ? 'danger' : i.stock_qty < i.alert_qty * 2 ? 'warn' : 'ok';
+    const color = lvl === 'danger' ? 'color:var(--red)' : lvl === 'warn' ? 'color:var(--amber)' : '';
+    const name = (i.products?.name || '') + (i.option_info ? ' ' + i.option_info : '');
+    return `<div class="stock-row"><div class="stock-name">${esc(name)}</div><div class="bar-bg"><div class="bar-fill bar-${lvl}" style="width:${Math.max(2, Math.round(i.stock_qty / max * 100))}%"></div></div><div class="stock-qty" style="${color}">${won(i.stock_qty)}개</div></div>`;
+  }).join('');
+}
+
+// ── 매출 ──
+function renderSales(d) {
+  const mEl = document.getElementById('sales-metrics');
+  if (!d || d._error) {
+    mEl.innerHTML = '';
+    document.getElementById('sales-chart').innerHTML = emptyMsg('불러오기 실패: ' + (d?._error || ''));
+    document.getElementById('sales-channels').innerHTML = '';
+    return;
+  }
+  const diff = d.prev_same_period ? (d.month_sales - d.prev_same_period) / d.prev_same_period * 100 : null;
+  const top = d.channels[0];
+  mEl.innerHTML =
+    metric('이번달 매출', man(d.month_sales), diff === null ? '' : `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}% (전월 동기)`, 'font-size:16px', diff >= 0 ? 'up' : 'dn') +
+    metric('채널 1위', top ? top.name.replace(' 스마트스토어', '') : '-', top && d.month_sales ? Math.round(top.amount / d.month_sales * 100) + '%' : '', 'font-size:16px') +
+    metric('평균 주문', d.month_orders ? won(Math.round(d.month_sales / d.month_orders)) : '-', '', 'font-size:16px') +
+    metric('반품율', (d.return_rate * 100).toFixed(1) + '%', '', 'font-size:16px');
+
+  const maxDay = Math.max(1, ...d.daily.map(x => x.amount));
+  document.getElementById('sales-chart').innerHTML = d.daily.map((x, i) => {
+    const last = i === d.daily.length - 1;
+    const h = Math.max(4, Math.round(x.amount / maxDay * 72));
+    const val = x.amount >= 1e6 ? (x.amount / 1e6).toFixed(1) + 'M' : x.amount >= 1e3 ? Math.round(x.amount / 1e3) + 'K' : x.amount;
+    return `<div class="mc-wrap"><div class="mc-val">${val}</div><div class="mc-bar" style="height:${h}px;background:${last ? 'var(--green)' : '#86efac'}"></div><div class="mc-lbl"${last ? ' style="color:var(--green);font-weight:700"' : ''}>${last ? '오늘' : x.date.slice(5).replace('-', '/')}</div></div>`;
+  }).join('');
+
+  document.getElementById('sales-channels').innerHTML = d.channels.length
+    ? d.channels.map(c => `<tr><td>${chTag(c)}</td><td>${man(c.amount)}</td><td>${d.month_sales ? Math.round(c.amount / d.month_sales * 100) : 0}%</td><td>${won(c.count)}건</td></tr>`).join('')
+    : `<tr><td colspan="4">${emptyMsg('이번달 매출이 없습니다')}</td></tr>`;
+}
+
+// ── OEM ──
+function renderOem(d) {
+  if (!d || d._error) {
+    document.getElementById('oem-metrics').innerHTML = '';
+    return errorFill(['oem-cards', 'quote-list', 'client-list'], ['oem-tbody'], d?._error || '');
+  }
+  const m = d.metrics;
+  document.getElementById('oem-metrics').innerHTML =
+    metric('이달 수주', man(m.month_amount), '', 'font-size:16px') +
+    metric('진행 중', m.in_progress + '건') +
+    metric('이달 납품 예정', m.due_this_month + '건') +
+    metric('미정산', m.unsettled + '건', '납품완료·정산 전', 'color:var(--amber)');
+
+  // 주문 목록
+  const desc = o => o.title || itemsText(o.oem_order_items);
+  const due = o => ['delivered', 'settled'].includes(o.status) ? '완료' : (o.expected_dt ? fmtDate(o.expected_dt).slice(5).replace('-', '/') : '-');
+  if (!d.orders.length) {
+    document.getElementById('oem-cards').innerHTML = emptyMsg('등록된 OEM 주문이 없습니다');
+    document.getElementById('oem-tbody').innerHTML = `<tr><td colspan="6">${emptyMsg('등록된 OEM 주문이 없습니다')}</td></tr>`;
+  } else {
+    document.getElementById('oem-cards').innerHTML = d.orders.map(o => {
+      const st = oemStatus(o.status);
+      return `<div class="order-card"><div class="order-card-top"><div><div class="order-no">${esc(o.order_no)}</div><div class="order-name">${esc(o.oem_clients?.name)}</div></div><span class="badge ${st.badge}">${esc(st.label)}</span></div><div class="order-product">${esc(desc(o))}</div><div class="order-meta"><span class="order-amount">${won(o.total_amount)}원</span><span class="order-time">납품 ${esc(due(o))}</span></div></div>`;
+    }).join('');
+    document.getElementById('oem-tbody').innerHTML = d.orders.map(o => {
+      const st = oemStatus(o.status);
+      return `<tr><td style="font-family:monospace;font-size:11px">${esc(o.order_no)}</td><td>${esc(o.oem_clients?.name)}</td><td>${esc(desc(o))}</td><td>${won(o.total_amount)}</td><td>${esc(due(o))}</td><td><span class="badge ${st.badge}">${esc(st.label)}</span></td></tr>`;
+    }).join('');
+  }
+
+  // 해운 진행: 취소 제외, 진행 중 → 완료 순
+  const prog = d.orders.filter(o => o.status !== 'cancelled')
+    .sort((a, b) => (oemStatus(a.status).stage === 5) - (oemStatus(b.status).stage === 5));
+  const opts = prog.map(o => `<option value="${esc(o.id)}">${esc(o.order_no)} · ${esc(o.oem_clients?.name)} · ${esc(desc(o))}</option>`).join('');
+  document.getElementById('prog-sel').innerHTML = opts;
+  document.getElementById('su-order').innerHTML = opts;
+  renderTL(prog[0]?.id);
+
+  // 견적서
+  document.getElementById('quote-list').innerHTML = d.quotes.length ? d.quotes.map(q => {
+    const [lbl, cls] = QUOTE_STATUS[q.status] || [q.status, 'b-draft'];
+    const n = (q.oem_quotation_items || []).length;
+    const grand = (q.total_amount || 0) + (q.vat_amount || 0) + (q.shipping_fee || 0);
+    return `<div class="order-card" onclick="openQuote('${esc(q.id)}')"><div class="order-card-top"><div><div class="order-no">${esc(q.quote_no)}</div><div class="order-name">${esc(q.oem_clients?.name)}</div></div><span class="badge ${cls}">${esc(lbl)}</span></div><div class="order-product">품목 ${n}종 · ${won(grand)}원</div><div class="order-meta"><span style="font-size:11px;color:var(--text2)">${q.valid_until ? '유효 ' + esc(fmtDate(q.valid_until)) : ''}</span><span class="order-time">${esc(fmtDate(q.created_at).replace(/-/g, '.'))}</span></div></div>`;
+  }).join('') : emptyMsg('작성된 견적서가 없습니다');
+
+  // 거래처
+  document.getElementById('client-list').innerHTML = d.clients.length ? d.clients.map(c => {
+    const pct = c.monthly_goal ? Math.round(c.month_amount / c.monthly_goal * 100) : 0;
+    return `<div class="client-card"><div class="client-name">${esc(c.name)}</div>${c.address ? `<div class="client-addr">📍 ${esc(c.address)}</div>` : ''}
+      <div class="client-meta">${c.biz_no ? `<span><b>사업자</b>${esc(c.biz_no)}</span>` : ''}${c.rep_name ? `<span><b>대표</b>${esc(c.rep_name)}</span>` : ''}${c.phone ? `<span><b>연락처</b>${esc(c.phone)}</span>` : ''}${c.email ? `<span><b>이메일</b>${esc(c.email)}</span>` : ''}</div>
+      <div class="client-goal"><span style="font-size:12px;color:var(--text2)">${c.monthly_goal ? `이달 목표 ${man(c.monthly_goal)}원 · ${pct}%` : '월 목표 미설정'}</span><span class="client-amount">${won(c.month_amount)}원</span></div>
+      <div class="prog-bg"><div class="prog-fill" style="width:${Math.min(100, pct)}%"></div></div>
+      <div class="client-btns"><button class="btn btn-sm btn-outline" onclick="oemTab('quote')">견적서</button><button class="btn btn-sm" onclick="oemTab('order')">주문</button></div></div>`;
+  }).join('') : emptyMsg('등록된 거래처가 없습니다');
+
+  const clientOpts = d.clients.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  document.querySelectorAll('.client-select').forEach(s => s.innerHTML = clientOpts);
+}
+
+function openQuote(id) {
+  const q = (DATA.oem?.quotes || []).find(x => x.id === id);
+  if (!q) return;
+  const items = (q.oem_quotation_items || []).slice().sort((a, b) => a.sort_order - b.sort_order);
+  const grand = (q.total_amount || 0) + (q.vat_amount || 0) + (q.shipping_fee || 0);
+  document.getElementById('qv-title').textContent = '견적서 ' + q.quote_no;
+  document.getElementById('qv-sub').textContent = `${q.quote_no} · ${fmtDate(q.created_at).replace(/-/g, '.')} 발행` + (q.valid_until ? ` · 유효: ${fmtDate(q.valid_until)}` : '');
+  document.getElementById('qv-client').textContent = (q.oem_clients?.name || '') + ' 귀중';
+  document.getElementById('qv-addr').textContent = q.oem_clients?.address || '';
+  document.getElementById('qv-total').textContent = `₩ ${won(grand)} 원`;
+  const td = 'padding:6px;border:1px solid var(--border)';
+  document.getElementById('qv-items').innerHTML = items.map(i => `<tr><td style="${td}">${esc(i.product_name)}${i.spec ? ` (${esc(i.spec)})` : ''}</td><td style="${td};text-align:center">${won(i.quantity)}</td><td style="${td};text-align:right">${won(i.total_price)}</td></tr>`).join('');
+  document.getElementById('qv-sum').textContent = `공급가액 ${won(q.total_amount)} · 부가세 ${won(q.vat_amount)} · 배송 ${won(q.shipping_fee)}`;
+  document.getElementById('m-pdf-msg').style.display = 'none';
+  openModal('m-quote-view');
+}
 </script>
 </body>
 </html>

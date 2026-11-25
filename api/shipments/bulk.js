@@ -74,13 +74,20 @@ module.exports = async (req, res) => {
       }
 
       // 3. Supabase shipments 테이블에 저장
-      await supabase.from('shipments').upsert({
-        order_id,
+      //    shipments.order_id에는 UNIQUE 제약이 없어 upsert(onConflict) 대신 조회 후 update/insert
+      const shipRow = {
         carrier,
         tracking_no,
         status:     'shipped',
         shipped_dt: new Date().toISOString()
-      }, { onConflict: 'order_id' });
+      };
+      const { data: existing, error: exErr } = await supabase
+        .from('shipments').select('id').eq('order_id', order_id).limit(1);
+      if (exErr) throw new Error(exErr.message);
+      const { error: shipErr } = existing && existing.length
+        ? await supabase.from('shipments').update(shipRow).eq('id', existing[0].id)
+        : await supabase.from('shipments').insert({ order_id, ...shipRow });
+      if (shipErr) throw new Error(shipErr.message);
 
       // 4. orders 테이블 상태 업데이트
       await supabase

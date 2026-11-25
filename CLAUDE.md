@@ -26,7 +26,8 @@
 ### ✅ 완료
 | 항목 | 위치 | 비고 |
 |------|------|------|
-| 반응형 어드민 UI | `frontend/index.html` | 샘플 데이터. **로그인은 API 연동 완료** (`doLogin`, `apiFetch`) |
+| 반응형 어드민 UI | `frontend/index.html` | 로그인 + **조회 화면 실데이터 연동**(주문·배송처리·재고·매출·OEM주문·해운진행·견적서·거래처). 등록/수정 모달(OEM주문·거래처·견적서 저장·해운 업데이트)과 송장 엑셀은 아직 동작 안 함 |
+| 화면 조회 API | `api/data/index.js` | `GET /api/data?type=shop\|stock\|sales\|oem` (JWT 필요). Hobby 함수 개수 제한 때문에 하나로 묶음. 브라우저 목업 테스트만 함, 실DB 미검증 |
 | DB 스키마 + 시드 | `db/schema.sql`, `db/add_sync_logs.sql`, `db/seed_admin_users.sql` | Supabase에 테이블 16개 생성됨, admin/manager 계정(bcrypt) 입력됨 |
 | 로그인 API | `api/auth/login.js`, `utils/auth.js` | bcrypt + JWT 7일. 운영에서 200 확인 |
 | 주문/수집/배송 API (서버리스) | `api/orders`, `api/sync`, `api/shipments/bulk`, `api/cron/sync` | 문법·모듈 로드만 검증. **실제 플랫폼 호출은 미검증** |
@@ -38,7 +39,7 @@
 2. 플랫폼 API 키 4종 재발급(과거 채팅에 노출) → Vercel 환경변수 교체 → Redeploy
 3. `POST /api/sync`로 주문 수집 테스트 → Supabase `orders` 확인
 4. 15분 자동 수집: Vercel Hobby 크론 한계 때문에 **외부 스케줄러**(cron-job.org 등)가 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출
-5. 프론트 샘플 데이터 → 실제 API 데이터 연결 (주문/재고/OEM/배송)
+5. 등록/수정 API + 모달 연결 (OEM 주문 등록, 거래처 등록·수정, 견적서 저장, 해운 단계 업데이트, 재고 입고)
 6. 견적서 PDF API(`/api/quote/pdf`), 에이블리 57컬럼 송장 엑셀 API
 7. 기존 `backend/api/`(Express)와 `api/`(서버리스) 중복 정리 — Vercel은 `api/`만 배포함. 하나로 통일할 것
 
@@ -47,6 +48,9 @@
 - 다른 도메인에서 API를 호출하면 CORS로 막힘 (같은 도메인 `/api/...`로 호출할 것)
 - 로컬 테스트: `npm install` 후 `node -e "require('./sync/scheduler')"`는 NODE_ENV≠production이면 15분 타이머를 켜서 종료되지 않음(정상)
 - 과거 GitHub 웹 업로드로 파일명/내용이 뒤바뀐 사고가 있었음 → 웹 업로드 대신 git 사용
+- `shipments.order_id`에는 UNIQUE가 없어 `upsert(onConflict:'order_id')`가 실패함 → `api/shipments/bulk.js`는 조회 후 update/insert
+- `oem_orders.status` 값 규칙(프론트 `OEM_STATUS`): `received`(접수) → `factory, china, sea, customs, cleared, delivered`(해운 6단계) → `settled`(정산완료), `cancelled`. 단계별 날짜 이력 테이블은 아직 없음
+- 견적서 상태: `draft | sent | confirmed`
 
 ---
 

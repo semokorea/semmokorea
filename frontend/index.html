@@ -581,7 +581,7 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <div class="sub-page active" id="op-order">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="font-size:16px;font-weight:700">OEM 주문 관리</div>
-          <button class="btn btn-sm btn-amber" onclick="openModal('m-oem-order')">신규 등록</button>
+          <button class="btn btn-sm btn-amber" onclick="openOemOrderModal()">신규 등록</button>
         </div>
         <div class="metrics" id="oem-metrics"></div>
         <div class="card">
@@ -757,12 +757,14 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
     <div class="modal-drag"></div>
     <div class="modal-inner">
       <div class="modal-title">OEM 신규 주문 등록</div>
-      <div class="form-grid"><div class="form-field"><label>거래처</label><select class="client-select"></select></div><div class="form-field"><label>납품예정일</label><input type="date" value="2025-04-30"></div></div>
-      <div class="form-field"><label>주문 내용</label><input placeholder="예: 린넨 블라우스 500pcs"></div>
-      <div class="form-grid"><div class="form-field"><label>수량</label><input type="number" placeholder="0" inputmode="numeric"></div><div class="form-field"><label>단가</label><input type="number" placeholder="0" inputmode="numeric"></div></div>
-      <div class="form-field"><label>메모</label><textarea rows="2"></textarea></div>
+      <div class="form-grid"><div class="form-field"><label>거래처 *</label><select class="client-select" id="oo-client"></select></div><div class="form-field"><label>납품예정일</label><input type="date" id="oo-due"></div></div>
+      <div class="form-field"><label>주문 내용 *</label><input id="oo-title" placeholder="예: 린넨 블라우스 500pcs" maxlength="200"></div>
+      <div class="form-grid"><div class="form-field"><label>수량 *</label><input id="oo-qty" type="number" placeholder="0" inputmode="numeric" min="1" oninput="ooCalc()"></div><div class="form-field"><label>단가 (원)</label><input id="oo-price" type="number" placeholder="0" inputmode="numeric" min="0" oninput="ooCalc()"></div></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px" id="oo-sum">공급가액 0원 · 부가세 0원</div>
+      <div class="form-field"><label>메모</label><textarea id="oo-memo" rows="2"></textarea></div>
+      <div id="oo-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
     </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('m-oem-order')">취소</button><button class="btn btn-amber" onclick="closeModal('m-oem-order')">등록</button></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('m-oem-order')">취소</button><button class="btn btn-amber" id="oo-btn" onclick="saveOemOrder()">등록</button></div>
   </div>
 </div>
 
@@ -941,7 +943,7 @@ function oemTab(t) {
 function onFab() {
   const isShop = document.getElementById('page-shop').classList.contains('active');
   if (isShop) openModal('m-quote');
-  else openModal('m-oem-order');
+  else openOemOrderModal();
 }
 
 // ── 송장출력 ──
@@ -1357,6 +1359,54 @@ function renderOem(d) {
 
   const clientOpts = d.clients.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
   document.querySelectorAll('.client-select').forEach(s => s.innerHTML = clientOpts);
+}
+
+// ── OEM 주문 등록 ──
+function openOemOrderModal() {
+  const err = document.getElementById('oo-err');
+  ['oo-title', 'oo-qty', 'oo-price', 'oo-memo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('oo-due').value = '';
+  err.textContent = (DATA.oem?.clients || []).length ? '' : '먼저 거래처를 등록하세요. (OEM 사업 → 거래처)';
+  ooCalc();
+  openModal('m-oem-order');
+}
+
+function ooCalc() {
+  const sup = (parseInt(document.getElementById('oo-qty').value) || 0) * (parseInt(document.getElementById('oo-price').value) || 0);
+  document.getElementById('oo-sum').textContent = `공급가액 ${won(sup)}원 · 부가세 ${won(Math.round(sup * 0.1))}원 · 합계 ${won(sup + Math.round(sup * 0.1))}원`;
+}
+
+async function saveOemOrder() {
+  const err = document.getElementById('oo-err');
+  const btn = document.getElementById('oo-btn');
+  const body = {
+    client_id:   document.getElementById('oo-client').value,
+    expected_dt: document.getElementById('oo-due').value || null,
+    title:       document.getElementById('oo-title').value.trim(),
+    quantity:    parseInt(document.getElementById('oo-qty').value) || 0,
+    unit_price:  parseInt(document.getElementById('oo-price').value) || 0,
+    memo:        document.getElementById('oo-memo').value.trim()
+  };
+  if (!body.client_id) { err.textContent = '먼저 거래처를 등록하세요. (OEM 사업 → 거래처)'; return; }
+  if (!body.title) { err.textContent = '주문 내용을 입력하세요.'; return; }
+  if (body.quantity < 1) { err.textContent = '수량을 1 이상 입력하세요.'; return; }
+  if (body.unit_price < 0) { err.textContent = '단가가 올바르지 않습니다.'; return; }
+  err.textContent = '';
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/oem/orders', { method: 'POST', body: JSON.stringify(body) });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { closeModal('m-oem-order'); alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) { err.textContent = r.error || ('등록 실패 (' + res.status + ')'); return; }
+    closeModal('m-oem-order');
+    await loadData('oem');
+    renderOem(DATA.oem);
+    switchMain('oem'); oemTab('order');
+  } catch (e) {
+    err.textContent = '서버에 연결할 수 없습니다.';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ── 거래처 등록/수정 ──

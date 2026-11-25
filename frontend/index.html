@@ -363,6 +363,8 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .modal-footer { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--white); position: sticky; bottom: 0; }
 .modal-footer .btn { flex: 1; }
+#m-quote-view .modal-footer { gap: 6px; padding-left: 14px; padding-right: 14px; }
+#m-quote-view .modal-footer .btn { white-space: nowrap; padding-left: 4px; padding-right: 4px; min-width: 0; }
 
 /* ── 매출 미니차트 ── */
 .mini-chart { display: flex; gap: 4px; align-items: flex-end; height: 72px; padding: 4px 14px; }
@@ -940,7 +942,24 @@ body { font-family: 'Malgun Gothic','맑은 고딕',-apple-system,BlinkMacSystem
       <button class="btn" style="color:var(--red);margin-right:auto" onclick="deleteQuote()">삭제</button>
       <button class="btn" onclick="closeModal('m-quote-view')">닫기</button>
       <button class="btn" onclick="closeModal('m-quote-view');openQuoteModal(currentQuoteId)">수정</button>
-      <button class="btn btn-amber" id="qv-pdf-btn" onclick="printQuote(currentQuoteId)">PDF 다운로드</button>
+      <button class="btn" id="qv-img-btn" onclick="printQuote(currentQuoteId, 'image')">이미지</button>
+      <button class="btn btn-amber" id="qv-pdf-btn" onclick="printQuote(currentQuoteId)">PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- 견적서 이미지 저장 -->
+<div class="modal-back" id="m-quote-img" onclick="if(event.target===this)closeModal('m-quote-img')">
+  <div class="modal-sheet modal-pc">
+    <div class="modal-drag"></div>
+    <div class="modal-inner">
+      <div class="modal-title">견적서 이미지</div>
+      <img id="qi-img" alt="견적서 이미지" style="display:block;width:100%;max-height:60vh;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff">
+      <div id="qi-hint" style="margin-top:10px;font-size:12px;color:var(--text2);line-height:1.6"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('m-quote-img')">닫기</button>
+      <button class="btn btn-amber" id="qi-save" onclick="saveQuoteImage()">사진첩에 저장</button>
     </div>
   </div>
 </div>
@@ -2399,7 +2418,8 @@ async function setQuoteStatus(status) {
 // ── 견적서 PDF: quote_template.html을 채워 숨은 iframe에서 인쇄 → 브라우저의 "PDF로 저장" ──
 const COMPANY = {
   company_name: '세모코리아', biz_no: '131-72-00034', rep_name: '김현석',
-  company_addr: '경기도 김포시 김포한강10로133번길 107', company_phone: '010-9959-8982', company_email: ''
+  company_addr: '경기도 김포시 김포한강10로133번길 107', company_phone: '010-9959-8982', company_email: '',
+  bank_name: '우리은행', bank_account: '1005-102-885313', bank_holder: '김현석'
 };
 let quoteTplCache = null;
 
@@ -2413,8 +2433,8 @@ function loadScriptOnce(src) {
   }));
 }
 
-// 견적서 HTML → A4 한 장 PDF Blob
-async function renderQuotePdf(html) {
+// 견적서 HTML → A4 한 장 크기 캔버스
+async function renderQuoteCanvas(html) {
   const W = 794, H = 1123; // A4 @96dpi
   const frame = document.createElement('iframe');
   frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${W}px;height:${H}px;border:0`;
@@ -2424,23 +2444,20 @@ async function renderQuotePdf(html) {
     const doc = frame.contentDocument;
     await Promise.all([...doc.images].map(img => img.complete ? 0 : new Promise(r => { img.onload = img.onerror = r; })));
     try { await Promise.race([doc.fonts.ready, new Promise(r => setTimeout(r, 3000))]); } catch (_) {}
-    const canvas = await window.html2canvas(doc.querySelector('.page'), {
+    return await window.html2canvas(doc.querySelector('.page'), {
       scale: 2, useCORS: true, backgroundColor: '#ffffff',
       width: W, height: H, windowWidth: W, windowHeight: H
     });
-    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-    pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
-    return pdf.output('blob');
   } finally {
     frame.remove();
   }
 }
 
 // 파일로 저장: 일반 브라우저는 바로 다운로드, 홈 화면 앱(iOS 독립 실행)은 공유 시트로
-async function saveBlob(blob, fileName) {
+async function saveBlob(blob, fileName, noShare = false) {
   const standalone = window.navigator.standalone === true;
-  if (standalone && navigator.canShare) {
-    const file = new File([blob], fileName, { type: 'application/pdf' });
+  if (!noShare && standalone && navigator.canShare) {
+    const file = new File([blob], fileName, { type: blob.type || 'application/pdf' });
     if (navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file], title: fileName }); return; }
       catch (e) { if (e.name === 'AbortError') return; }
@@ -2453,7 +2470,32 @@ async function saveBlob(blob, fileName) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-async function printQuote(id) {
+// 견적서 이미지 → 사진첩 저장 창
+let quoteImgFile = null;
+function showQuoteImage(blob, fileName) {
+  quoteImgFile = new File([blob], fileName, { type: 'image/jpeg' });
+  const img = document.getElementById('qi-img');
+  if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+  img.dataset.url = URL.createObjectURL(blob);
+  img.src = img.dataset.url;
+  const mobileShare = !!(navigator.canShare && navigator.canShare({ files: [quoteImgFile] }));
+  document.getElementById('qi-save').textContent = mobileShare ? '사진첩에 저장' : '이미지 다운로드';
+  document.getElementById('qi-hint').innerHTML = mobileShare
+    ? '<b>사진첩에 저장</b>을 누른 뒤 아이폰은 <b>이미지 저장</b>, 안드로이드는 <b>갤러리/포토</b>를 선택하세요.<br>또는 위 이미지를 <b>길게 눌러</b> 저장할 수 있습니다.'
+    : 'JPG 파일로 다운로드됩니다.';
+  openModal('m-quote-img');
+}
+async function saveQuoteImage() {
+  if (!quoteImgFile) return;
+  // 공유 시트는 버튼 탭 직후에 바로 불러야 해서, 이미지는 미리 만들어 둔다
+  if (navigator.canShare && navigator.canShare({ files: [quoteImgFile] })) {
+    try { await navigator.share({ files: [quoteImgFile] }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  await saveBlob(quoteImgFile, quoteImgFile.name, true);
+}
+
+async function printQuote(id, kind = 'pdf') {
   const q = (DATA.oem?.quotes || []).find(x => x.id === id);
   if (!q) return;
   try {
@@ -2492,21 +2534,31 @@ async function printQuote(id) {
       `<img src="${new URL('stamp_semockorea.png', location.href)}" alt="직인" style="width:28mm;height:28mm;opacity:.9">`);
     // 화면 폭과 상관없이 A4(794×1123px)로 렌더 → 캔버스 → PDF 파일로 바로 다운로드 (인쇄 창 없음, 모바일 포함)
     html = html.replace('<head>', `<head><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">`);
-    const fileName = `${q.quote_no}_${client.name || '견적서'}.pdf`.replace(/[\\/:*?"<>|]/g, '_');
-    const btn = document.getElementById('qv-pdf-btn');
+    const baseName = `${q.quote_no}_${client.name || '견적서'}`.replace(/[\\/:*?"<>|]/g, '_');
+    const fileName = baseName + (kind === 'image' ? '.jpg' : '.pdf');
+    const btn = document.getElementById(kind === 'image' ? 'qv-img-btn' : 'qv-pdf-btn');
+    const btnLabel = btn ? btn.textContent : '';
     const msg = document.getElementById('m-pdf-msg');
-    if (btn) { btn.disabled = true; btn.textContent = 'PDF 만드는 중…'; }
-    msg.textContent = 'PDF 파일을 만드는 중입니다…'; msg.style.display = 'block';
+    if (btn) { btn.disabled = true; btn.textContent = '만드는 중…'; }
+    msg.textContent = (kind === 'image' ? '이미지를' : 'PDF 파일을') + ' 만드는 중입니다…'; msg.style.display = 'block';
     try {
       await Promise.all([
         loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
         loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
       ]);
-      const blob = await renderQuotePdf(html);
-      await saveBlob(blob, fileName);
+      const canvas = await renderQuoteCanvas(html);
+      if (kind === 'image') {
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+        msg.style.display = 'none';
+        showQuoteImage(blob, fileName);
+        return;
+      }
+      const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+      await saveBlob(pdf.output('blob'), fileName);
       msg.textContent = `PDF 저장 완료: ${fileName}`;
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'PDF 다운로드'; }
+      if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
     }
   } catch (e) {
     document.getElementById('m-pdf-msg').style.display = 'none';

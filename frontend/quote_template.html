@@ -8,7 +8,7 @@
 body{font-family:'Noto Sans KR','Malgun Gothic',sans-serif;font-size:9pt;color:#1a1a2e;background:#fff}
 .page{width:210mm;min-height:297mm;padding:0;margin:0 auto;position:relative}
 
-.header{background:#1A6B3C;color:#fff;padding:12mm 15mm 10mm;display:flex;justify-content:space-between;align-items:flex-start}
+.header{background:#1A6B3C;color:#fff;padding:8mm 15mm 7mm;display:flex;justify-content:space-between;align-items:flex-start}
 .co-name{font-size:20pt;font-weight:700;margin-bottom:3mm}
 .co-sub{font-size:9pt;opacity:0.85;margin-bottom:2mm}
 .co-meta{font-size:7.5pt;opacity:0.75}
@@ -16,12 +16,12 @@ body{font-family:'Noto Sans KR','Malgun Gothic',sans-serif;font-size:9pt;color:#
 .doc-title h1{font-size:15pt;font-weight:700;margin-bottom:3mm;letter-spacing:2px}
 .doc-meta{font-size:8pt;opacity:0.9;line-height:1.9}
 
-.body{padding:8mm 15mm}
+.body{padding:7mm 15mm 22mm}
 
-.parties{display:flex;gap:5mm;margin-bottom:6mm}
+.parties{display:flex;gap:5mm;margin-bottom:4mm}
 .party-box{flex:1;border-radius:4px;overflow:hidden}
 .party-head{background:#1A6B3C;color:#fff;padding:3mm 4mm;font-size:8pt;font-weight:700}
-.party-body{background:#F0FAF4;padding:4mm;min-height:28mm}
+.party-body{background:#F0FAF4;padding:4mm;min-height:22mm}
 .party-name{font-size:11pt;font-weight:700;color:#1a1a2e;margin-bottom:2mm}
 .party-info{font-size:7.5pt;color:#555;line-height:1.8}
 
@@ -31,16 +31,16 @@ body{font-family:'Noto Sans KR','Malgun Gothic',sans-serif;font-size:9pt;color:#
 .stamp-co{font-size:6pt;font-weight:700;text-align:center;line-height:1.3}
 .stamp-in{font-size:10pt;font-weight:700}
 
-.total-banner{background:#1A6B3C;color:#fff;padding:4mm 6mm;border-radius:3px;display:flex;justify-content:space-between;align-items:center;margin-bottom:5mm}
+.total-banner{background:#1A6B3C;color:#fff;padding:4mm 6mm;border-radius:3px;display:flex;justify-content:space-between;align-items:center;margin-bottom:3mm}
 .total-label{font-size:10pt;font-weight:700;letter-spacing:1px}
 .total-amount{font-size:13pt;font-weight:700}
 
-table{width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:5mm}
+table{width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:3mm}
 thead tr{background:#1A6B3C;color:#fff}
 thead th{padding:3mm 3mm;text-align:center;font-weight:700;font-size:7.5pt}
 tbody tr:nth-child(even){background:#F7FAF8}
 tbody tr:nth-child(odd){background:#fff}
-tbody td{padding:2.5mm 3mm;border-bottom:0.3pt solid #ddd;vertical-align:middle}
+tbody td{padding:2mm 3mm;border-bottom:0.3pt solid #ddd;vertical-align:middle}
 .td-no{text-align:center;width:8mm}
 .td-name{width:65mm}
 .td-qty{text-align:right;width:14mm}
@@ -49,12 +49,18 @@ tbody td{padding:2.5mm 3mm;border-bottom:0.3pt solid #ddd;vertical-align:middle}
 .td-note{text-align:center;width:18mm;font-size:7pt;color:#888}
 .td-empty td{color:transparent;border-bottom:0.3pt solid #eee}
 
-.summary-section{background:#F0FAF4;border-radius:3px;overflow:hidden;margin-bottom:5mm}
+.summary-section{background:#F0FAF4;border-radius:3px;overflow:hidden;margin-bottom:3mm}
 .sum-row{display:flex;justify-content:space-between;padding:2.5mm 6mm;border-bottom:0.3pt solid #ddd;font-size:8.5pt}
 .sum-row.total-row{background:#1A6B3C;color:#fff;font-weight:700;font-size:10pt;padding:3.5mm 6mm}
 .sum-val{font-weight:500}
 
-.notes-box{background:#F0FAF4;border-left:3pt solid #1A6B3C;padding:4mm 5mm;border-radius:0 3px 3px 0;margin-bottom:6mm}
+.notes-row{display:flex;gap:4mm;margin-bottom:0;align-items:stretch}
+.notes-box{flex:1;background:#F0FAF4;border-left:3pt solid #1A6B3C;padding:4mm 5mm;border-radius:0 3px 3px 0}
+.bank-box{width:72mm;border:0.8pt solid #1A6B3C;border-radius:3px;padding:3.5mm 5mm}
+.bank-title{font-size:8pt;font-weight:700;color:#1A6B3C;margin-bottom:2mm}
+.bank-row{display:flex;font-size:8pt;line-height:1.9;color:#333}
+.bank-row span:first-child{width:15mm;color:#777}
+.bank-acct{font-weight:700;font-size:9pt;letter-spacing:.3px}
 .notes-title{font-size:8pt;font-weight:700;color:#1A6B3C;margin-bottom:2mm}
 .notes-text{font-size:8pt;color:#444;line-height:1.9}
 
@@ -142,9 +148,17 @@ tbody td{padding:2.5mm 3mm;border-bottom:0.3pt solid #ddd;vertical-align:middle}
       <div class="sum-row total-row"><span>최종 합계 (VAT 포함)</span><span>{{grand_total}} 원</span></div>
     </div>
 
-    <div class="notes-box">
-      <div class="notes-title">특이사항 / 비고</div>
-      <div class="notes-text">{{notes}}</div>
+    <div class="notes-row">
+      <div class="notes-box">
+        <div class="notes-title">특이사항 / 비고</div>
+        <div class="notes-text">{{notes}}</div>
+      </div>
+      <div class="bank-box">
+        <div class="bank-title">입금 계좌</div>
+        <div class="bank-row"><span>은행</span><span>{{bank_name}}</span></div>
+        <div class="bank-row"><span>계좌번호</span><span class="bank-acct">{{bank_account}}</span></div>
+        <div class="bank-row"><span>예금주</span><span>{{bank_holder}}</span></div>
+      </div>
     </div>
   </div>
 

@@ -9,9 +9,13 @@ const zigzag  = require('./zigzag');
 const ALL = { naver, coupang, ably, zigzag };
 
 // 실제로 연동이 끝난 채널만 수집한다. 환경변수 SYNC_CHANNELS="naver,coupang" 처럼 지정 (기본: naver)
+// 쿠팡은 키 3개(COUPANG_ACCESS_KEY/SECRET_KEY/VENDOR_ID)가 모두 있으면 자동으로 포함한다.
 function enabledChannels() {
-  return (process.env.SYNC_CHANNELS || 'naver')
+  const list = (process.env.SYNC_CHANNELS || 'naver')
     .split(',').map(s => s.trim()).filter(c => ALL[c]);
+  const e = process.env;
+  if (e.COUPANG_ACCESS_KEY && e.COUPANG_SECRET_KEY && e.COUPANG_VENDOR_ID && !list.includes('coupang')) list.push('coupang');
+  return list;
 }
 
 // 전체 동기화 실행

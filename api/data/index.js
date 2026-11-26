@@ -380,6 +380,7 @@ async function saveRocketPos(list, user) {
 //  - 쿠팡 로켓: rocket_pos.received_amount (입고금액, 없으면 발주금액), 입고예정일 기준
 //  - OEM: oem_orders.total_amount + vat_amount, 견적서발행·취소 제외, 주문일 기준
 const DASH_SOURCES = ['naver', 'coupang', 'rocket', 'oem'];
+const DASH_FROM_YEAR = 2026;   // 대시보드는 2026년부터 (그 전 데이터는 DB에 있어도 표시 안 함)
 async function getDashboard({ year } = {}) {
   const thisYear = Number(kstDate().slice(0, 4));
   const selYear = Number(year) || thisYear;
@@ -400,7 +401,7 @@ async function getDashboard({ year } = {}) {
   const months = {};                                        // 'YYYY-MM' → { naver, coupang, rocket, oem }
   const add = (dt, src, amt) => {
     const ym = String(dt || '').slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(ym) || !amt) return;
+    if (!/^\d{4}-\d{2}$/.test(ym) || !amt || Number(ym.slice(0, 4)) < DASH_FROM_YEAR) return;
     (months[ym] ||= { naver: 0, coupang: 0, rocket: 0, oem: 0 })[src] += amt;
   };
   const sold = o => !['cancelled', 'returned'].includes(o.status);
@@ -422,12 +423,13 @@ async function getDashboard({ year } = {}) {
     const t = (years[y] ||= { naver: 0, coupang: 0, rocket: 0, oem: 0 });
     DASH_SOURCES.forEach(s => { t[s] += v[s]; });
   }
-  years[thisYear] ||= { naver: 0, coupang: 0, rocket: 0, oem: 0 };
+  // 2026년부터 내년까지는 데이터가 없어도 탭(연도)을 보여준다
+  for (let y = DASH_FROM_YEAR; y <= thisYear + 1; y++) years[y] ||= { naver: 0, coupang: 0, rocket: 0, oem: 0 };
 
   // 올해 같은 기간(1월 1일~오늘의 월·일) 대비 작년
   const md = kstDate().slice(5);
   const ytdPrev = { naver: 0, coupang: 0, rocket: 0, oem: 0 };
-  const prevY = String(thisYear - 1);
+  const prevY = thisYear - 1 >= DASH_FROM_YEAR ? String(thisYear - 1) : 'none';   // 2026년 이전은 비교하지 않음
   for (const o of shop.data || []) if (sold(o) && String(o.order_dt || '').startsWith(prevY) && String(o.order_dt).slice(5, 10) <= md && DASH_SOURCES.includes(o.channels?.code)) ytdPrev[o.channels.code] += Number(o.total_amount || 0);
   for (const r of rocket.data || []) if (String(r.expected_dt || '').startsWith(prevY) && String(r.expected_dt).slice(5, 10) <= md) ytdPrev.rocket += Number(r.received_amount || 0) || Number(r.order_amount || 0);
   for (const o of oem.data || []) if (!['quoted', 'cancelled'].includes(o.status) && String(o.order_dt || '').startsWith(prevY) && String(o.order_dt).slice(5, 10) <= md) ytdPrev.oem += Number(o.total_amount || 0) + Number(o.vat_amount || 0);

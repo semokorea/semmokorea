@@ -1,5 +1,5 @@
 // api/data/index.js
-// GET  /api/data?type=shop|stock|sales|oem|qna  — 어드민 화면용 조회 API
+// GET  /api/data?type=shop|stock|sales|oem|qna|rocket|dashboard — 어드민 화면용 조회 API
 // POST /api/data (action=collect_qna|answer_qna|rocket_po_save) — Q&A 수집/답변, 로켓 발주서 저장 (Vercel 함수 개수 제한 때문에 여기에 묶음)
 const { supabase } = require('../../utils/supabase');
 const { verifyRequest } = require('../../utils/auth');
@@ -374,7 +374,105 @@ async function saveRocketPos(list, user) {
   return { ok: true, saved };
 }
 
-const HANDLERS = { shop: getShop, stock: getStock, sales: getSales, oem: getOem, qna: getQna, rocket: getRocket };
+// ── 메인 대시보드: 매출원별(네이버·쿠팡·쿠팡 로켓·OEM) 연도/월 매출 + 처리할 일 + TOP 5 ──
+// 금액 기준은 모두 "VAT 포함 실제 거래 금액"으로 맞춘다
+//  - 쇼핑몰: orders.total_amount (결제금액), 취소·반품 제외, 주문일 기준
+//  - 쿠팡 로켓: rocket_pos.received_amount (입고금액, 없으면 발주금액), 입고예정일 기준
+//  - OEM: oem_orders.total_amount + vat_amount, 견적서발행·취소 제외, 주문일 기준
+const DASH_SOURCES = ['naver', 'coupang', 'rocket', 'oem'];
+async function getDashboard({ year } = {}) {
+  const thisYear = Number(kstDate().slice(0, 4));
+  const selYear = Number(year) || thisYear;
+  const [shop, oem, rocket, qna] = await Promise.all([
+    supabase.from('orders')
+      .select('order_dt, total_amount, status, channels ( code ), order_items ( product_name, quantity, total_amount )')
+      .limit(50000),
+    supabase.from('oem_orders')
+      .select('order_dt, total_amount, vat_amount, status, oem_clients ( name )')
+      .limit(20000),
+    supabase.from('rocket_pos')
+      .select('expected_dt, order_amount, received_amount, status')
+      .limit(20000),
+    supabase.from('product_qnas').select('id', { count: 'exact', head: true }).is('answer_content', null)
+  ]);
+  [shop, oem, rocket].forEach(r => check(r.error));
+
+  const months = {};                                        // 'YYYY-MM' → { naver, coupang, rocket, oem }
+  const add = (dt, src, amt) => {
+    const ym = String(dt || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(ym) || !amt) return;
+    (months[ym] ||= { naver: 0, coupang: 0, rocket: 0, oem: 0 })[src] += amt;
+  };
+  const sold = o => !['cancelled', 'returned'].includes(o.status);
+  const products = {};
+  for (const o of shop.data || []) {
+    const code = o.channels?.code;
+    if (!sold(o) || !DASH_SOURCES.includes(code)) continue;
+    add(o.order_dt, code, Number(o.total_amount || 0));
+    if (String(o.order_dt || '').startsWith(String(selYear))) {
+      for (const it of o.order_items || []) {
+        const k = it.product_name || '(상품명 없음)';
+        const p = (products[k] ||= { name: k, qty: 0, amount: 0 });
+        p.qty += Number(it.quantity || 0);
+        p.amount += Number(it.total_amount || 0);
+      }
+    }
+  }
+  for (const r of rocket.data || []) add(r.expected_dt, 'rocket', Number(r.received_amount || 0) || Number(r.order_amount || 0));
+  const clients = {};
+  for (const o of oem.data || []) {
+    if (['quoted', 'cancelled'].includes(o.status)) continue;
+    const amt = Number(o.total_amount || 0) + Number(o.vat_amount || 0);
+    add(o.order_dt, 'oem', amt);
+    if (String(o.order_dt || '').startsWith(String(selYear))) {
+      const k = o.oem_clients?.name || '(거래처 없음)';
+      const c = (clients[k] ||= { name: k, count: 0, amount: 0 });
+      c.count++; c.amount += amt;
+    }
+  }
+
+  // 연도별 합계 (올해는 데이터가 없어도 항상 포함)
+  const years = {};
+  for (const [ym, v] of Object.entries(months)) {
+    const y = ym.slice(0, 4);
+    const t = (years[y] ||= { naver: 0, coupang: 0, rocket: 0, oem: 0 });
+    DASH_SOURCES.forEach(s => { t[s] += v[s]; });
+  }
+  years[thisYear] ||= { naver: 0, coupang: 0, rocket: 0, oem: 0 };
+
+  // 올해 같은 기간(1월 1일~오늘의 월·일) 대비 작년
+  const md = kstDate().slice(5);
+  const ytdPrev = { naver: 0, coupang: 0, rocket: 0, oem: 0 };
+  const prevY = String(thisYear - 1);
+  for (const o of shop.data || []) if (sold(o) && String(o.order_dt || '').startsWith(prevY) && String(o.order_dt).slice(5, 10) <= md && DASH_SOURCES.includes(o.channels?.code)) ytdPrev[o.channels.code] += Number(o.total_amount || 0);
+  for (const r of rocket.data || []) if (String(r.expected_dt || '').startsWith(prevY) && String(r.expected_dt).slice(5, 10) <= md) ytdPrev.rocket += Number(r.received_amount || 0) || Number(r.order_amount || 0);
+  for (const o of oem.data || []) if (!['quoted', 'cancelled'].includes(o.status) && String(o.order_dt || '').startsWith(prevY) && String(o.order_dt).slice(5, 10) <= md) ytdPrev.oem += Number(o.total_amount || 0) + Number(o.vat_amount || 0);
+
+  const shopRows = shop.data || [], oemRows = oem.data || [];
+  const unsettled = oemRows.filter(o => o.status === 'delivered');
+  return {
+    this_year: thisYear,
+    year: selYear,
+    years: Object.keys(years).sort().map(y => ({ year: Number(y), ...years[y] })),
+    months: Object.keys(months).filter(ym => ym.startsWith(String(selYear))).sort().map(ym => ({ month: ym, ...months[ym] })),
+    ytd_prev: ytdPrev,
+    todo: {
+      new_orders:    shopRows.filter(o => o.status === 'new').length,
+      to_ship:       shopRows.filter(o => ['confirmed', 'preparing', 'ready'].includes(o.status)).length,
+      shipping:      shopRows.filter(o => o.status === 'shipped').length,
+      qna:           qna.error ? null : (qna.count || 0),
+      oem_quoted:    oemRows.filter(o => o.status === 'quoted').length,
+      oem_progress:  oemRows.filter(o => !['quoted', 'delivered', 'settled', 'cancelled'].includes(o.status)).length,
+      oem_unsettled: unsettled.length,
+      oem_unsettled_amount: unsettled.reduce((s, o) => s + Number(o.total_amount || 0) + Number(o.vat_amount || 0), 0),
+      rocket_pending: (rocket.data || []).filter(r => r.status !== 'received').length
+    },
+    top_products: Object.values(products).sort((a, b) => b.amount - a.amount).slice(0, 5),
+    top_clients:  Object.values(clients).sort((a, b) => b.amount - a.amount).slice(0, 5)
+  };
+}
+
+const HANDLERS = { shop: getShop, stock: getStock, sales: getSales, oem: getOem, qna: getQna, rocket: getRocket, dashboard: getDashboard };
 
 // ── POST 액션: Q&A 수집 / 답변 등록 ──
 async function postAction(req, payload) {
@@ -434,7 +532,7 @@ module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
       const handler = HANDLERS[req.query.type];
-      if (!handler) return res.status(400).json({ error: 'type은 shop|stock|sales|oem|qna|rocket 중 하나' });
+      if (!handler) return res.status(400).json({ error: 'type은 shop|stock|sales|oem|qna|rocket|dashboard 중 하나' });
       return res.status(200).json(await handler(req.query));
     }
     if (req.method === 'POST') {

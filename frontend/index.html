@@ -290,6 +290,48 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
 .st-n { font-size: 17px; font-weight: 700; line-height: 1.3; }
 .st-tile:not(.on) .st-n { font-weight: 500; }
 .st-amt { font-size: 10px; color: var(--text2); }
+/* 메인 대시보드 — 매출원 색(고정 순서): 네이버·쿠팡·쿠팡 로켓·OEM */
+:root { --s-naver: #2a78d6; --s-coupang: #eb6834; --s-rocket: #1baf7a; --s-oem: #eda100; }
+.dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.dash-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+.dk { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; box-shadow: var(--shadow); }
+.dk-total { background: var(--green); border-color: var(--green); color: #fff; }
+.dk-l { font-size: 11px; color: var(--text2); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.dk-total .dk-l, .dk-total .dk-sub { color: rgba(255,255,255,.85); }
+.dk-v { font-size: 20px; font-weight: 700; margin-top: 4px; }
+.dk-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.dk-sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.dk-sub.up, .dk-up { color: #15803d; } .dk-sub.dn, .dk-dn { color: var(--red); }
+.dk-total .dk-sub.up, .dk-total .dk-sub.dn { color: #fff; font-weight: 600; }
+.dash-legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 6px 14px 0; font-size: 12px; color: var(--text2); }
+.dash-legend i, .dc-tip i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.dash-chart { position: relative; padding: 6px 8px 8px; overflow: hidden; }
+.dash-chart svg { display: block; }
+.dc-grid { stroke: #ececec; stroke-width: 1; } .dc-grid.base { stroke: #cfcfcf; }
+.dc-ytick { font-size: 10px; fill: var(--text3); text-anchor: end; }
+.dc-xtick { font-size: 10px; fill: var(--text2); text-anchor: middle; } .dc-xtick.future { fill: #c8c8c8; }
+.dc-hit { cursor: pointer; } .dc-hit:hover { fill: rgba(0,0,0,.035); }
+.dc-tip { display: none; position: absolute; pointer-events: none; background: #111; color: #fff; font-size: 11px; border-radius: 8px; padding: 8px 10px; min-width: 170px; box-shadow: 0 6px 18px rgba(0,0,0,.18); z-index: 5; }
+.dc-tip b { display: block; margin-bottom: 4px; } .dc-tip div { display: flex; align-items: center; } .dc-tip span { margin-left: auto; padding-left: 12px; }
+#dash-years-tbl tr.dash-sel td { background: var(--green-l); }
+.dash-todo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px 12px 12px; }
+.dt { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; background: #fafafa; font: inherit; text-align: left; cursor: pointer; color: var(--text3); }
+.dt.on { background: var(--white); color: var(--text); }
+.dt.on.red { border-color: #f3d0d0; } .dt.on.red .dt-n { color: var(--red); }
+.dt.on.amber { border-color: #f1dfc0; } .dt.on.amber .dt-n { color: #b45309; }
+.dt-l { font-size: 11px; color: var(--text2); white-space: nowrap; } .dt-n { font-size: 18px; font-weight: 700; } .dt-s { font-size: 10px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.mix-row { display: grid; grid-template-columns: 70px 1fr 120px; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; }
+.mix-track { height: 10px; background: #f1f1f1; border-radius: 5px; overflow: hidden; } .mix-bar { height: 100%; border-radius: 5px; }
+.mix-v { text-align: right; color: var(--text2); white-space: nowrap; }
+.top-row { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-top: 1px solid var(--border); font-size: 12px; }
+.top-rank { width: 18px; height: 18px; border-radius: 50%; background: var(--green-l); color: var(--green); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.top-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top-sub { color: var(--text3); white-space: nowrap; } .top-amt { font-weight: 700; white-space: nowrap; min-width: 56px; text-align: right; }
+@media (max-width: 1023px) { .dash-kpis { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px) { .dash-kpis { grid-template-columns: repeat(2, 1fr); } .dk-total { grid-column: 1 / -1; } .dash-todo { grid-template-columns: repeat(2, 1fr); } .mix-row { grid-template-columns: 62px 1fr 104px; } }
+#dash-years-tbl { min-width: 620px; }
+.dash-ywrap { overflow-x: auto; }
+
 /* 쿠팡 로켓 발주 카드 */
 .rk-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px 12px 4px; }
 .rk-m { background: #fafafa; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
@@ -479,6 +521,7 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
   <nav class="topbar">
     <div class="topbar-logo"><div class="logo-dot"></div>세모코리아</div>
     <div class="topbar-tabs">
+      <div class="topbar-tab" onclick="switchMain('dash')">대시보드</div>
       <div class="topbar-tab active" onclick="switchMain('shop')">쇼핑몰 운영</div>
       <div class="topbar-tab" onclick="switchMain('oem')">OEM 사업</div>
     </div>
@@ -510,6 +553,51 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
   </div>
 
   <div class="content">
+
+    <!-- ══════ 메인 대시보드 ══════ -->
+    <div class="page" id="page-dash">
+      <div class="dash-head">
+        <div>
+          <div style="font-size:16px;font-weight:700">대시보드</div>
+          <div style="font-size:11px;color:var(--text3)">VAT 포함 거래금액 · 쇼핑몰은 취소·반품 제외 · OEM은 견적서발행·취소 제외</div>
+        </div>
+        <div id="dash-years" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+      </div>
+      <div class="dash-kpis" id="dash-kpis"></div>
+
+      <div class="card">
+        <div class="card-head"><span class="card-title" id="dash-month-title">월별 매출</span></div>
+        <div class="dash-legend" id="dash-legend"></div>
+        <div id="dash-chart" class="dash-chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="card-title">연도별 매출</span><span style="font-size:11px;color:var(--text3)">해가 바뀌면 자동으로 한 줄씩 쌓여요</span></div>
+        <div class="dash-ywrap"><table class="tbl sum-tbl" id="dash-years-tbl"></table></div>
+      </div>
+
+      <div class="section-grid">
+        <div class="card">
+          <div class="card-head"><span class="card-title">처리할 일</span></div>
+          <div class="dash-todo" id="dash-todo"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title" id="dash-mix-title">매출 구성</span></div>
+          <div id="dash-mix" style="padding:6px 12px 12px"></div>
+        </div>
+      </div>
+
+      <div class="section-grid">
+        <div class="card">
+          <div class="card-head"><span class="card-title" id="dash-prod-title">쇼핑몰 인기 상품 TOP 5</span></div>
+          <div id="dash-products"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title" id="dash-client-title">OEM 거래처 TOP 5</span></div>
+          <div id="dash-clients"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- ══════ 쇼핑몰 ══════ -->
     <div class="page active" id="page-shop">
@@ -784,6 +872,10 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
   <!-- 모바일 바텀 네비 -->
   <nav class="bottom-nav">
     <div class="bnav-inner">
+      <div class="bnav-item" id="bn-dash" onclick="switchMain('dash')">
+        <div class="bnav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg></div>
+        <span class="bnav-label">대시보드</span>
+      </div>
       <div class="bnav-item active" id="bn-shop" onclick="switchMain('shop')">
         <div class="bnav-icon"><svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
         <span class="bnav-label">쇼핑몰</span>
@@ -1166,7 +1258,7 @@ async function doLogin() {
   document.getElementById('more-username').textContent = curUser.name + ' (' + curUser.username + ')';
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('admin-screen').style.display = 'block';
-  startSync(); mInitItems(); loadAll();
+  switchMain('dash'); startSync(); mInitItems(); loadAll();
 }
 
 // ── 비밀번호 변경 ──
@@ -1232,7 +1324,7 @@ function restoreSession() {
   document.getElementById('more-username').textContent = curUser.name + ' (' + curUser.username + ')';
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('admin-screen').style.display = 'block';
-  startSync(); mInitItems(); loadAll();
+  switchMain('dash'); startSync(); mInitItems(); loadAll();
 }
 // 저장된 로그인 복원은 스크립트 전체(DATA 등 선언)가 실행된 뒤에 해야 한다
 document.addEventListener('DOMContentLoaded', restoreSession);
@@ -1252,18 +1344,19 @@ function startSync() {
 }
 
 // ── 메인 탭 전환 ──
+const MAIN_TABS = ['dash', 'shop', 'oem'];   // 탑바 탭 순서와 같아야 함
 function switchMain(tab) {
-  const isShop = tab === 'shop';
-  document.querySelectorAll('.topbar-tab').forEach((t,i) => t.classList.toggle('active', isShop ? i===0 : i===1));
-  document.getElementById('page-shop').classList.toggle('active', isShop);
-  document.getElementById('page-oem').classList.toggle('active', !isShop);
-  document.getElementById('shop-subtabs').style.display = isShop ? 'flex' : 'none';
-  document.getElementById('oem-subtabs').style.display  = !isShop ? 'flex' : 'none';
-  // 바텀 네비
-  document.getElementById('bn-shop').classList.toggle('active', isShop);
-  document.getElementById('bn-oem').classList.toggle('active', !isShop);
-  // FAB 레이블
-  document.getElementById('fab-btn').textContent = isShop ? '+' : '+';
+  document.querySelectorAll('.topbar-tab').forEach((t, i) => t.classList.toggle('active', MAIN_TABS[i] === tab));
+  MAIN_TABS.forEach(k => {
+    document.getElementById('page-' + k).classList.toggle('active', k === tab);
+    document.getElementById('bn-' + k).classList.toggle('active', k === tab);
+  });
+  document.getElementById('shop-subtabs').style.display = tab === 'shop' ? 'flex' : 'none';
+  document.getElementById('oem-subtabs').style.display  = tab === 'oem'  ? 'flex' : 'none';
+  // FAB(+)는 쇼핑몰·OEM에서만
+  document.getElementById('fab-btn').style.display = tab === 'dash' ? 'none' : '';
+  window.scrollTo(0, 0);
+  if (tab === 'dash' && DATA.dash && !DATA.dash._error) renderDashChart(DATA.dash);   // 숨겨진 채 그려졌으면 폭 맞춰 다시
 }
 
 // ── 쇼핑몰 서브탭 ──
@@ -1575,6 +1668,7 @@ async function loadAll() {
   const [shop, stock, sales, oem] = await Promise.all(['shop', 'stock', 'sales', 'oem'].map(loadData));
   if (!curUser) return; // 로그아웃됨
   renderShop(shop); renderStock(stock); renderSales(sales); renderOem(oem);
+  loadDash().catch(() => {});      // 메인 대시보드
   loadRocket().catch(() => {});   // 쿠팡 로켓 발주 (따로 불러옴)
   loadSyncStatus();
   // 문의 미답변 뱃지 갱신 (가볍게 백그라운드로)
@@ -1586,6 +1680,179 @@ function errorFill(ids, tbodies, msg) {
   ids.forEach(id => document.getElementById(id).innerHTML = emptyMsg('불러오기 실패: ' + msg));
   tbodies.forEach(id => document.getElementById(id).innerHTML = `<tr><td colspan="7">${emptyMsg('불러오기 실패: ' + msg)}</td></tr>`);
 }
+
+// ══════════ 메인 대시보드 ══════════
+// 매출원 순서·색은 고정 (필터나 데이터 유무로 바뀌지 않음)
+const DASH_SRC = [
+  { key: 'naver',   label: '네이버' },
+  { key: 'coupang', label: '쿠팡' },
+  { key: 'rocket',  label: '쿠팡 로켓' },
+  { key: 'oem',     label: 'OEM' }
+];
+let dashYear = null;
+
+async function loadDash(year) {
+  if (year) dashYear = year;
+  try {
+    const res = await apiFetch('/data?type=dashboard' + (dashYear ? '&year=' + dashYear : ''));
+    if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || res.status);
+    DATA.dash = body;
+  } catch (e) {
+    DATA.dash = { _error: e.message };
+  }
+  if (curUser) renderDash(DATA.dash);
+}
+
+// 금액 짧게: 1.2억 / 3,450만 / 9,800원
+function dashMoney(n) {
+  n = Math.round(Number(n) || 0);
+  if (Math.abs(n) >= 1e8) return (n / 1e8).toFixed(n >= 1e10 ? 0 : 1).replace(/\.0$/, '') + '억';
+  if (Math.abs(n) >= 1e4) return won(Math.round(n / 1e4)) + '만';
+  return won(n) + '원';
+}
+const dashTotal = r => DASH_SRC.reduce((s, x) => s + Number(r?.[x.key] || 0), 0);
+
+function renderDash(d) {
+  const kpis = document.getElementById('dash-kpis');
+  if (!d || d._error) {
+    kpis.innerHTML = emptyMsg('불러오기 실패: ' + (d?._error || ''));
+    ['dash-chart', 'dash-todo', 'dash-mix', 'dash-products', 'dash-clients'].forEach(id => document.getElementById(id).innerHTML = '');
+    document.getElementById('dash-years-tbl').innerHTML = '';
+    return;
+  }
+  const Y = d.year, isThis = Y === d.this_year;
+  const yr = d.years.find(r => r.year === Y) || {};
+
+  // 연도 선택
+  document.getElementById('dash-years').innerHTML = d.years.slice().reverse()
+    .map(r => `<button class="fpill${r.year === Y ? ' on' : ''}" onclick="loadDash(${r.year})">${r.year}년</button>`).join('');
+
+  // KPI: 전체 + 매출원별 (올해면 작년 같은 기간 대비)
+  const delta = (cur, prev) => {
+    if (!isThis || !(prev > 0)) return '';
+    const p = (cur - prev) / prev * 100;
+    return `<div class="dk-sub ${p >= 0 ? 'up' : 'dn'}">작년 같은 기간 대비 ${p >= 0 ? '+' : ''}${p.toFixed(0)}%</div>`;
+  };
+  const prevTot = dashTotal(d.ytd_prev);
+  kpis.innerHTML =
+    `<div class="dk dk-total"><div class="dk-l">${Y}년 전체 매출${isThis ? ' (오늘까지)' : ''}</div><div class="dk-v">${dashMoney(dashTotal(yr))}</div>${delta(dashTotal(yr), prevTot) || `<div class="dk-sub">${won(dashTotal(yr))}원</div>`}</div>` +
+    DASH_SRC.map(s => `<div class="dk"><div class="dk-l"><span class="dk-sw" style="background:var(--s-${s.key})"></span>${s.label}</div><div class="dk-v">${dashMoney(yr[s.key])}</div>${delta(yr[s.key], d.ytd_prev?.[s.key]) || ''}</div>`).join('');
+
+  // 월별 쌓은 막대
+  document.getElementById('dash-month-title').textContent = `${Y}년 월별 매출`;
+  document.getElementById('dash-legend').innerHTML = DASH_SRC.map(s => `<span><i style="background:var(--s-${s.key})"></i>${s.label}</span>`).join('');
+  renderDashChart(d);
+
+  // 연도별 표
+  const rows = d.years.slice().reverse();
+  document.getElementById('dash-years-tbl').innerHTML =
+    `<thead><tr><th>연도</th>${DASH_SRC.map(s => `<th class="num">${s.label}</th>`).join('')}<th class="num">합계</th><th class="num">전년 대비</th></tr></thead><tbody>` +
+    rows.map(r => {
+      const prev = d.years.find(x => x.year === r.year - 1);
+      const t = dashTotal(r), pt = prev ? dashTotal(prev) : 0;
+      const g = pt > 0 ? (t - pt) / pt * 100 : null;
+      return `<tr class="${r.year === Y ? 'dash-sel' : ''}"><td><b>${r.year}년</b>${r.year === d.this_year ? ' <span style="font-size:10px;color:var(--text3)">진행 중</span>' : ''}</td>` +
+        DASH_SRC.map(s => `<td class="num">${won(r[s.key] || 0)}</td>`).join('') +
+        `<td class="num"><b>${won(t)}</b></td><td class="num">${g === null ? '<span style="color:var(--text3)">-</span>' : `<span class="${g >= 0 ? 'dk-up' : 'dk-dn'}">${g >= 0 ? '+' : ''}${g.toFixed(0)}%</span>`}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  // 처리할 일 (누르면 해당 화면으로)
+  const t = d.todo || {};
+  const todo = [
+    ['신규주문', t.new_orders, '발주확인 필요', "switchMain('shop');shopTab('order')", 'red'],
+    ['배송준비중', t.to_ship, '송장 입력 필요', "switchMain('shop');shopTab('ship')", 'amber'],
+    ['미답변 문의', t.qna, '상품 문의', "switchMain('shop');shopTab('qna')", 'amber'],
+    ['배송중', t.shipping, '도착 전', "switchMain('shop');shopTab('order')", ''],
+    ['OEM 견적 대기', t.oem_quoted, '견적서발행 상태', "switchMain('oem');oemTab('order')", ''],
+    ['OEM 진행 중', t.oem_progress, '주문접수~출고중', "switchMain('oem');oemTab('order')", ''],
+    ['OEM 미정산', t.oem_unsettled, t.oem_unsettled_amount ? dashMoney(t.oem_unsettled_amount) : '납품완료·정산 전', "switchMain('oem');oemTab('order');if(!oemUnsettledOnly)toggleUnsettledFilter()", 'red'],
+    ['로켓 입고 대기', t.rocket_pending, '서플라이어허브', "switchMain('shop');shopTab('order');document.getElementById('rocket-card').scrollIntoView({behavior:'smooth'})", '']
+  ];
+  document.getElementById('dash-todo').innerHTML = todo.map(([label, n, sub, go, tone]) => {
+    const has = Number(n) > 0;
+    return `<button class="dt${has ? ' on ' + tone : ''}" onclick="${go}"><span class="dt-l">${label}</span><span class="dt-n">${n == null ? '-' : won(n)}</span><span class="dt-s">${esc(sub)}</span></button>`;
+  }).join('');
+
+  // 매출 구성 (선택 연도)
+  document.getElementById('dash-mix-title').textContent = `${Y}년 매출 구성`;
+  const tot = dashTotal(yr) || 1;
+  document.getElementById('dash-mix').innerHTML = DASH_SRC.map(s => {
+    const v = Number(yr[s.key] || 0), p = v / tot * 100;
+    return `<div class="mix-row"><div class="mix-l">${s.label}</div><div class="mix-track"><div class="mix-bar" style="width:${Math.max(p, v ? 1 : 0)}%;background:var(--s-${s.key})"></div></div><div class="mix-v">${p.toFixed(0)}% · ${dashMoney(v)}</div></div>`;
+  }).join('');
+
+  // TOP 5
+  const top = (list, sub) => list.length ? list.map((r, i) =>
+    `<div class="top-row"><span class="top-rank">${i + 1}</span><span class="top-name" title="${esc(r.name)}">${esc(r.name)}</span><span class="top-sub">${sub(r)}</span><span class="top-amt">${dashMoney(r.amount)}</span></div>`).join('')
+    : emptyMsg(`${Y}년 데이터가 없습니다`);
+  document.getElementById('dash-prod-title').textContent = `${Y}년 쇼핑몰 인기 상품 TOP 5`;
+  document.getElementById('dash-client-title').textContent = `${Y}년 OEM 거래처 TOP 5`;
+  document.getElementById('dash-products').innerHTML = top(d.top_products || [], r => `${won(r.qty)}개`);
+  document.getElementById('dash-clients').innerHTML = top(d.top_clients || [], r => `${won(r.count)}건`);
+}
+
+// 월별 쌓은 막대 (SVG). 막대마다 마우스/터치 → 월 합계와 매출원별 금액 툴팁
+function renderDashChart(d) {
+  const box = document.getElementById('dash-chart');
+  const byMonth = Object.fromEntries((d.months || []).map(m => [Number(m.month.slice(5, 7)), m]));
+  const lastMonth = d.year === d.this_year ? Number(new Date(Date.now() + 9 * 3600e3).toISOString().slice(5, 7)) : 12;
+  const data = Array.from({ length: 12 }, (_, i) => ({ m: i + 1, v: byMonth[i + 1] || {} }));
+  const max = Math.max(1, ...data.map(x => dashTotal(x.v)));
+  // 눈금: 1·2·5 단위로 3~4줄
+  const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(k => k * mag).find(s => s >= raw);
+  const top = Math.ceil(max / step) * step;
+  const W = Math.max(300, box.clientWidth || 720), H = 230, L = 46, R = 6, T = 10, B = 24, cw = (W - L - R) / 12, bw = Math.min(34, cw * 0.62);
+  const y = v => T + (H - T - B) * (1 - v / top);
+  let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${d.year}년 월별 매출 막대 그래프">`;
+  for (let g = 0; g <= top + 1e-9; g += step) {
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}" class="dc-grid${g === 0 ? ' base' : ''}"/>` +
+           `<text x="${L - 6}" y="${y(g) + 3.5}" class="dc-ytick">${g ? dashMoney(g) : '0'}</text>`;
+  }
+  data.forEach(({ m, v }) => {
+    const x = L + cw * (m - 1) + (cw - bw) / 2;
+    let acc = 0;
+    const segs = DASH_SRC.filter(s => Number(v[s.key]) > 0);
+    segs.forEach((s, i) => {
+      const val = Number(v[s.key]);
+      const y0 = y(acc), y1 = y(acc + val);
+      const isTop = i === segs.length - 1;
+      const h = Math.max(0, y0 - y1 - (isTop ? 0 : 2));          // 2px 틈
+      const r = isTop ? Math.min(4, h, bw / 2) : 0;               // 맨 위만 둥글게
+      const yt = y0 - h;
+      svg += `<path fill="var(--s-${s.key})" d="M${x},${y0} V${yt + r} Q${x},${yt} ${x + r},${yt} H${x + bw - r} Q${x + bw},${yt} ${x + bw},${yt + r} V${y0} Z"/>`;
+      acc += val;
+    });
+    svg += `<text x="${x + bw / 2}" y="${H - 8}" class="dc-xtick${m > lastMonth ? ' future' : ''}">${cw < 34 ? m : m + '월'}</text>`;
+    svg += `<rect x="${L + cw * (m - 1)}" y="${T}" width="${cw}" height="${H - T - B}" fill="transparent" class="dc-hit" data-m="${m}"/>`;
+  });
+  svg += '</svg>';
+  box.innerHTML = svg + '<div class="dc-tip" id="dash-tip"></div>';
+
+  const tip = document.getElementById('dash-tip');
+  const show = (e, m) => {
+    const v = data[m - 1].v;
+    tip.innerHTML = `<b>${d.year}년 ${m}월 · ${won(dashTotal(v))}원</b>` +
+      DASH_SRC.map(s => `<div><i style="background:var(--s-${s.key})"></i>${s.label}<span>${won(v[s.key] || 0)}원</span></div>`).join('');
+    tip.style.display = 'block';
+    const rect = box.getBoundingClientRect();
+    const px = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    tip.style.left = Math.min(Math.max(px - tip.offsetWidth / 2, 0), rect.width - tip.offsetWidth) + 'px';
+    tip.style.top = '0px';
+  };
+  box.querySelectorAll('.dc-hit').forEach(el => {
+    const m = Number(el.dataset.m);
+    el.addEventListener('mousemove', e => show(e, m));
+    el.addEventListener('touchstart', e => show(e, m), { passive: true });
+    el.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  });
+}
+
+// 화면 폭이 바뀌면 그래프를 다시 그림
+let dashResizeT = null;
+window.addEventListener('resize', () => { clearTimeout(dashResizeT); dashResizeT = setTimeout(() => { if (DATA.dash && !DATA.dash._error && document.getElementById('page-dash').classList.contains('active')) renderDashChart(DATA.dash); }, 150); });
 
 // ══════════ 쿠팡 로켓(서플라이어허브) 발주 ══════════
 // 엑셀(.xlsx)은 zip 파일 → 브라우저 기본 기능(DecompressionStream)으로 풀어서 첫 시트의 셀을 읽는다 (외부 라이브러리 없음)

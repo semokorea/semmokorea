@@ -37,7 +37,7 @@
 - 테스트 방식: 이 PC엔 Node가 없음 → 로컬 정적 서버(`scratchpad/serve.ps1`, 포트 8765) + 브라우저에서 API 파일을 가짜 supabase로 실행해 검증. 실서버 확인은 Supabase MCP(SQL) + 중계 서버 Squid 로그 + Vercel Logs 화면
 
 ### ❌ 남은 작업
-1. **[내일] 쿠팡·에이블리·지그재그 연동** — 아래 "다음 작업" 참고
+1. **쿠팡 연결 확인 + 지그재그 검토** — 아래 "다음 작업" 참고 (에이블리는 연동 안 하기로 함)
 2. 15분 자동 수집: Vercel Hobby 크론은 하루 1회 → **cron-job.org** 등이 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출 (CRON_SECRET은 Vercel에 있음)
 3. 수집 속도 개선: 주문 1건당 DB 3회 호출이라 7일치에서 45초 제한에 걸림 → upsert/insert 일괄 처리로 바꿀 것
 4. 초기 비밀번호 변경(admin·manager) 확인, 바탕화면 `클로드코드/PROXY_URL_for_vercel.txt` 삭제 확인
@@ -46,17 +46,21 @@
 7. 보안: 모든 테이블 RLS 꺼져 있음(서버가 service key로만 접근, 프론트는 Supabase 직접 호출 안 함). Vercel의 `SUPABASE_SERVICE_KEY`가 실제 service_role 키인지 확인 권장
 8. 기존 `backend/api/`(Express, 배포 안 됨) 정리
 
-### ▶ 다음 작업: 쿠팡 · 에이블리 · 지그재그 연동 (2026-11-26 예정)
-**공통 방식**: 네이버와 똑같이 → ① 공식 문서 확보 ② `sync/<채널>.js`를 공식 규격으로 재작성(현재 코드는 추측으로 작성돼 검증 안 됨) ③ 요청은 `utils/proxy.js`(PROXY_URL)로 ④ Squid `ALLOWED_DOMAINS`에 API 도메인 추가 ⑤ Vercel `SYNC_CHANNELS`에 채널 추가 ⑥ 1일 수집 → DB 필드 확인 → 7일 수집. 스토어별 집계표·배송처리는 채널만 들어오면 자동으로 채워짐
+### ▶ 쇼핑몰 연동 현황 (2026-11-26)
+**공통 방식**: ① 공식 문서 확보 ② `sync/<채널>.js`를 공식 규격으로 작성 ③ 요청은 `utils/proxy.js`(PROXY_URL)로 ④ Squid `ALLOWED_DOMAINS`에 API 도메인 추가 ⑤ 수집 채널 켜기 ⑥ 1일 수집 → DB 필드 확인. 스토어별 집계표·배송처리는 채널만 들어오면 자동으로 채워짐
 
-**쿠팡 (Wing OPEN API)**
-- 대표님 준비: 쿠팡 Wing → OPEN API 키 **재발급**(과거 노출) → Access Key·Secret Key·업체코드(Vendor ID) 확인 → Vercel `COUPANG_ACCESS_KEY / COUPANG_SECRET_KEY / COUPANG_VENDOR_ID` 교체(값은 채팅 금지). **허용 IP 입력란이 있으면 101.79.26.42** 등록
-- 개발: HMAC 서명 날짜 형식(현재 4자리 연도 → 쿠팡 규격 확인), 주문 조회(ordersheets) 파라미터·페이징, 송장 등록 엔드포인트를 공식 문서(developers.coupangcorp.com)로 재확인. 도메인 `api-gateway.coupang.com`은 Squid 허용 목록에 이미 있음
+**쿠팡 Wing (OPEN API) — 코드 완료, 연결 확인 대기**
+- `sync/coupang.js`: 공식 문서(developers.coupang.com) 기준. 서명 날짜 yyMMdd'T'HHmmss'Z', v5 ordersheets(상태별·일단위·nextToken), 30일 전체 상태 스캔, 상품준비중 처리 후 송장 업로드, shipmentBoxId는 문자열 유지(2^53 초과)
+- 키 3개(COUPANG_ACCESS_KEY/SECRET_KEY/VENDOR_ID)가 있으면 수집에 자동 포함(SYNC_CHANNELS 불필요). 키 앞뒤 공백 자동 제거, Access/Secret이 바뀌어 저장돼도 자동으로 맞바꿈(Access=36자 UUID)
+- Wing 계정: 업체코드 A01300533, **OPEN API 키 유효기간 2027-05-25** → 그 전에 Wing에서 재발급 후 Vercel 교체 필요
+- Wing 연동정보 허용 IP: 58.127.206.110 + **101.79.26.42**(2026-11-26 추가, 반영 최대 30분). 오류 이력: 401 not registered(옛 키) → 401 Hmac key is expired(만료 키) → 403 IP not allowed(IP 미등록)
+- 쿠팡 서플라이어허브(로켓배송 납품): 공개 API 확인 안 됨 → 필요하면 발주 엑셀 업로드 방식으로
 
-**에이블리 · 지그재그(카카오스타일)**
-- 판매자에게 공개된 공식 주문 API가 있는지부터 확인 필요. 현재 코드의 주소(`api.a-bly.com`, `api.zigzag.kr`)는 검증 안 된 추측
-- 대표님 준비: 에이블리 파트너스 / 지그재그 파트너센터에서 **API(연동) 신청 메뉴나 담당자 안내**가 있는지 확인, 있으면 발급 키·문서 링크·IP 등록 여부 확인
-- 공식 API가 없으면 대안: 각 판매자센터의 **주문 엑셀 다운로드 → 어드민에 업로드**하는 가져오기 기능(엑셀 컬럼 매핑) 구현
+**에이블리 — 연동 안 함 (2026-11-26 결정)**
+- 공개 API 없음. 셀러센터 API Token은 승인된 제휴 솔루션 전용, 셀러스 계정만 가능. 쇼핑몰 탭 스토어 목록에서 제외함(`sync/ably.js`는 남아 있으나 수집에 안 켜짐)
+
+**지그재그(카카오스타일) — 검토 중**
+- 파트너센터 > 스토어 정보 관리 > 상품/주문 API 에서 인증키(Access/Secret) 발급 가능하다는 제휴사 안내 있음. 공개 문서는 못 찾음 → 로그인 후 문서 링크·IP 등록 여부 확인 필요. 현재 `sync/zigzag.js` 주소(`api.zigzag.kr`)는 검증 안 된 추측
 
 ### 쇼핑몰 API 연동 구조 (2026-11-25)
 - 네이버·쿠팡은 **API 호출 IP 등록 필수** → Vercel(유동 IP) 대신 **고정 IP 중계 서버**를 거쳐 호출

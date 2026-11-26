@@ -170,6 +170,47 @@ async function syncOrders({ days = 1 } = {}) {
   return { synced: synced + refreshed, errors, message };
 }
 
+// ── 과거 주문 가져오기 ──
+// from(KST 날짜 'YYYY-MM-DD')부터 하루(24시간)씩 앞으로 조회한다. 함수 실행 시간(60초) 안에 끝나도록
+// 약 35초까지만 처리하고, 다음에 이어서 시작할 날짜(next)를 돌려준다. 화면이 next로 다시 호출해 끝까지 진행.
+// 같은 주문이 여러 날(결제·발송·배송완료…)에 나와도 마지막 상세로 덮어쓰므로 중복되지 않는다.
+const BACKFILL_BUDGET_MS = 35000;
+async function backfillOrders({ from } = {}) {
+  const started = Date.now();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(from || ''))) throw new Error('시작 날짜(YYYY-MM-DD)가 필요합니다.');
+  const channelId = await getChannelId('naver');
+  const DAY = 24 * 3600 * 1000;
+  const endMs = Date.now() - 5000;
+  let cur = Date.parse(`${from}T00:00:00+09:00`);
+  let synced = 0, errors = 0, changed = 0, days = 0, errMsg = '';
+  const seen = new Set();
+  try {
+    while (cur < endMs && Date.now() - started < BACKFILL_BUDGET_MS) {
+      const to = new Date(Math.min(cur + DAY - 1, endMs));
+      const ids = (await fetchChangedIds(new Date(cur), to)).filter(id => !seen.has(id));
+      changed += ids.length;
+      const details = ids.length ? await fetchDetails(ids) : [];
+      for (const d of details) {
+        const r = await saveDetail(channelId, d);
+        if (r === true) { synced++; seen.add(String(d.productOrder?.productOrderId)); }
+        else { errors++; errMsg = errMsg || r; }
+      }
+      cur += DAY;
+      days++;
+    }
+  } catch (e) {
+    errMsg = `API 오류: ${errText(e)}`;
+    console.error('[NAVER-BACKFILL]', errMsg);
+    errors++;
+  }
+  const kstDay = ms => new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const next = cur < endMs ? kstDay(cur) : null;            // 오류가 나면 그 날짜부터 다시
+  const message = `과거 주문 ${from}~${kstDay(cur - 1)} ${days}일 조회 · 변경 ${changed}건 · 저장 ${synced}건` +
+    (next ? ` · 다음 시작 ${next}` : ' · 완료') + (errMsg ? ` · ${errMsg}` : '');
+  await logSync('naver', { synced, errors, message });
+  return { synced, errors, changed, days, next, done: !next, error: errMsg || null, message };
+}
+
 // 진행 중(아직 구매확정·취소·반품이 아닌) 주문: 상품주문번호 → 현재 상태
 const OPEN_STATUSES = ['waiting', 'new', 'confirmed', 'preparing', 'ready', 'shipped', 'delivered'];  // 배송완료도 구매확정·반품으로 바뀌므로 계속 확인
 const OPEN_LOOKBACK_DAYS = 60;
@@ -439,4 +480,4 @@ async function answerQna({ questionId, commentContent }) {
   return { ok: true, answer: trimmed };
 }
 
-module.exports = { syncOrders, registerShipment, getToken, mapNaverOrder, syncQnas, answerQna };
+module.exports = { syncOrders, backfillOrders, registerShipment, getToken, mapNaverOrder, syncQnas, answerQna };

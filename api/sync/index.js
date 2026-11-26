@@ -26,6 +26,15 @@ module.exports = async (req, res) => {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
+  // 과거 주문 가져오기 (네이버): body { backfill_from: 'YYYY-MM-DD' } → { next, done, ... }
+  if (req.body?.backfill_from) {
+    try {
+      return res.status(200).json(await naver.backfillOrders({ from: String(req.body.backfill_from) }));
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+  }
+
   const enabled = enabledChannels();
   const requested = Array.isArray(req.body?.channels) ? req.body.channels : enabled;
   const channels = requested.filter(c => enabled.includes(c));

@@ -615,7 +615,10 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
             <button class="btn btn-sm btn-green" onclick="shopTab('ship')">배송처리</button>
           </div>
         </div>
-        <div id="sync-status" style="font-size:11px;color:var(--text2);margin:-6px 0 10px"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-6px 0 10px;flex-wrap:wrap">
+          <div id="sync-status" style="font-size:11px;color:var(--text2)"></div>
+          <button class="btn btn-sm" id="backfill-btn" onclick="runNaverBackfill()" title="네이버 과거 주문을 날짜를 정해 한꺼번에 가져옵니다" style="font-size:11px;padding:3px 8px">네이버 과거 주문 가져오기</button>
+        </div>
         <div class="metrics" id="shop-metrics"></div>
 
         <!-- 스토어별 주문 집계 (숫자를 누르면 해당 주문 목록) -->
@@ -2378,6 +2381,44 @@ async function runOrderSync() {
   } finally {
     btn.disabled = false;
     btn.textContent = '주문 수집';
+    loadSyncStatus();
+  }
+}
+
+// ── 네이버 과거 주문 가져오기: 서버가 약 35초씩 처리하고 다음 시작일을 돌려주면 이어서 다시 호출 ──
+let backfillRunning = false;
+async function runNaverBackfill() {
+  const btn = document.getElementById('backfill-btn');
+  if (backfillRunning) { backfillRunning = false; btn.textContent = '멈추는 중…'; return; }   // 진행 중에 누르면 멈춤
+  const from = prompt('네이버 주문을 어느 날짜부터 가져올까요? (YYYY-MM-DD)\n하루씩 조회해서 시간이 걸립니다. 중간에 버튼을 다시 누르면 멈춰요.', new Date().getFullYear() + '-01-01');
+  if (!from) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from.trim())) { alert('날짜 형식은 2026-01-01 처럼 입력하세요.'); return; }
+  backfillRunning = true;
+  let next = from.trim(), total = 0, rounds = 0, lastErr = null;
+  const status = document.getElementById('sync-status');
+  try {
+    while (backfillRunning && next) {
+      btn.textContent = `가져오는 중… ${next} (멈추기)`;
+      const res = await apiFetch('/sync', { method: 'POST', body: JSON.stringify({ backfill_from: next }) });
+      const r = await res.json().catch(() => ({}));
+      if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+      if (!res.ok) throw new Error(r.error || res.status);
+      total += r.synced || 0; rounds++;
+      status.textContent = `네이버 과거 주문: ${r.message}`;
+      if (r.error && r.next === next) { lastErr = r.error; break; }   // 같은 날에서 계속 실패하면 멈춤
+      next = r.next;
+      if (rounds > 60) break;   // 안전장치
+    }
+    if (lastErr) alert(`과거 주문 가져오기가 ${next}에서 멈췄어요.\n${lastErr}\n\n잠시 뒤 다시 누르고 ${next}부터 이어서 진행하세요.`);
+    else if (!next) alert(`네이버 과거 주문 가져오기 완료\n저장 ${won(total)}건 (같은 주문의 상태 갱신 포함)`);
+    else alert(`멈췄어요. 저장 ${won(total)}건. 다음에 ${next}부터 이어서 가져오면 돼요.`);
+  } catch (e) {
+    alert('과거 주문 가져오기 실패: ' + e.message + (next ? `\n${next}부터 다시 시도하세요.` : ''));
+  } finally {
+    backfillRunning = false;
+    btn.textContent = '네이버 과거 주문 가져오기';
+    await loadData('shop'); renderShop(DATA.shop);
+    loadDash().catch(() => {});
     loadSyncStatus();
   }
 }

@@ -517,6 +517,7 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
                 <th class="num">배송준비중</th>
                 <th class="num">배송중</th>
                 <th class="num">배송완료</th>
+                <th class="num">구매확정</th>
                 <th class="num">순매출</th>
               </tr></thead>
               <tbody id="sum-tbody"></tbody>
@@ -1450,6 +1451,7 @@ const ORDER_STATUS = {
   ready:     ['배송준비중', 'b-wait'],
   shipped:   ['배송중', 'b-ship'],
   delivered: ['배송완료', 'b-done'],
+  completed: ['구매확정', 'b-done'],
   cancelled: ['취소', 'b-done'],
   returned:  ['반품', 'b-done']
 };
@@ -1526,7 +1528,7 @@ function renderShop(d) {
     metric('오늘 주문', won(m.today_orders) + '건', '취소 제외') +
     metric('배송준비중', won(m.pending) + '건', m.pending ? '처리 필요' : '', 'color:var(--amber)', 'dn') +
     metric('배송중', won(m.shipping || 0) + '건', '전체') +
-    metric('배송완료', won(m.delivered_today || 0) + '건', '오늘', 'color:#16a34a') +
+    metric('배송완료', won(m.delivered ?? 0) + '건', '구매확정 전', 'color:#16a34a') +
     metric('오늘매출', man(m.today_sales), '', 'font-size:16px');
   renderOrders();
   renderShipList();
@@ -1539,21 +1541,22 @@ const STORES = [
   { code: 'ably',    name: '에이블리' },
   { code: 'zigzag',  name: '지그재그' }
 ];
-// 집계 구분: all=전체 주문, cancel=취소, return=반품, pending=배송준비중, shipping=배송중, delivered=배송완료
+// 집계 구분: all=전체 주문, cancel=취소, return=반품, pending=배송준비중, shipping=배송중, delivered=배송완료, completed=구매확정
 const SUM_KIND = {
   all:     { label: '주문',     test: () => true },
   cancel:  { label: '취소',     test: o => o.status === 'cancelled' },
   return:  { label: '반품',     test: o => o.status === 'returned' },
   pending:   { label: '배송준비중', test: o => PENDING_STATUS.includes(o.status) },
   shipping:  { label: '배송중',     test: o => o.status === 'shipped' },
-  delivered: { label: '배송완료',   test: o => o.status === 'delivered' }
+  delivered: { label: '배송완료',   test: o => o.status === 'delivered' },
+  completed: { label: '구매확정',   test: o => o.status === 'completed' }
 };
 let summaryDays = 7;
 
 async function setSummaryDays(d) {
   summaryDays = d;
   document.querySelectorAll('#sum-periods .fpill').forEach(b => b.classList.toggle('on', Number(b.dataset.d) === d));
-  document.getElementById('sum-tbody').innerHTML = `<tr><td colspan="8">${emptyMsg('불러오는 중…')}</td></tr>`;
+  document.getElementById('sum-tbody').innerHTML = `<tr><td colspan="9">${emptyMsg('불러오는 중…')}</td></tr>`;
   const r = await loadData('shop');
   if (r) renderShop(DATA.shop);
 }
@@ -1572,7 +1575,7 @@ function renderOrders() {
   const cell = (store, kind, color = '') => {
     const list = ordersOf(store, kind);
     const n = list.length;
-    const amt = ['pending', 'shipping', 'delivered'].includes(kind) ? '' : `<span class="amt">${won(amountOf(list))}원</span>`;
+    const amt = ['pending', 'shipping', 'delivered', 'completed'].includes(kind) ? '' : `<span class="amt">${won(amountOf(list))}원</span>`;
     const num = n
       ? `<a class="cnt ${color}" onclick="openOrderList('${store}','${kind}')" title="눌러서 목록 보기">${won(n)}</a>`
       : `<span class="cnt" style="color:var(--text3);font-weight:500">0</span>`;
@@ -1585,7 +1588,7 @@ function renderOrders() {
   const row = (store, name, total = false) =>
     `<tr class="${total ? 'total' : ''}"><td>${total ? '<b>합계</b>' : chTag({ code: store, name })}</td>` +
     cell(store, 'all') + cell(store, 'cancel', 'red') + cell(store, 'return', 'red') +
-    cell(store, 'pending', 'amber') + cell(store, 'shipping', 'blue') + cell(store, 'delivered') + net(store) + '</tr>';
+    cell(store, 'pending', 'amber') + cell(store, 'shipping', 'blue') + cell(store, 'delivered') + cell(store, 'completed') + net(store) + '</tr>';
 
   tbody.innerHTML = STORES.map(s => row(s.code, s.name)).join('') + row('all', '합계', true);
 }
@@ -1593,7 +1596,7 @@ function renderOrders() {
 // 송장 정보 (택배사 · 운송장번호) — 배송중/배송완료 주문 목록에 작게 표시
 function shipInfo(o) {
   const s = (o.shipments || []).find(x => x.tracking_no || x.carrier);
-  if (!s || !['shipped', 'delivered'].includes(o.status)) return '';
+  if (!s || !['shipped', 'delivered', 'completed'].includes(o.status)) return '';
   return `<div style="font-size:10px;color:var(--text2);margin-top:2px;white-space:nowrap">${esc(s.carrier || '')} ${esc(s.tracking_no || '')}</div>`;
 }
 

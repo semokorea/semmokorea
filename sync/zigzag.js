@@ -118,7 +118,7 @@ function mapZigzagStatus(s) {
     'preparing':         'preparing',
     'shipping':          'shipped',
     'delivered':         'delivered',
-    'purchase_confirm':  'delivered',
+    'purchase_confirm':  'completed',
     'cancelled':         'cancelled',
     'returned':          'returned',
   };

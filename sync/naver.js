@@ -170,8 +170,8 @@ async function syncOrders({ days = 1 } = {}) {
   return { synced: synced + refreshed, errors, message };
 }
 
-// 진행 중(아직 배송완료·취소·반품이 아닌) 주문: 상품주문번호 → 현재 상태
-const OPEN_STATUSES = ['new', 'confirmed', 'preparing', 'ready', 'shipped'];
+// 진행 중(아직 구매확정·취소·반품이 아닌) 주문: 상품주문번호 → 현재 상태
+const OPEN_STATUSES = ['new', 'confirmed', 'preparing', 'ready', 'shipped', 'delivered'];  // 배송완료도 구매확정·반품으로 바뀌므로 계속 확인
 const OPEN_LOOKBACK_DAYS = 60;
 async function openOrders(channelId) {
   const since = new Date(Date.now() + 9 * 3600 * 1000 - OPEN_LOOKBACK_DAYS * 24 * 3600 * 1000).toISOString().slice(0, 10);
@@ -319,7 +319,7 @@ function mapNaverStatus(s) {
     PAYED:                 'confirmed',
     DELIVERING:            'shipped',
     DELIVERED:             'delivered',
-    PURCHASE_DECIDED:      'delivered',
+    PURCHASE_DECIDED:      'completed',   // 구매확정 (배송완료와 따로 센다)
     EXCHANGED:             'delivered',
     CANCELED:              'cancelled',
     CANCELED_BY_NOPAYMENT: 'cancelled',
@@ -338,15 +338,16 @@ function mapNaverStatus(s) {
 // Q&A 목록 조회 (페이지네이션)
 async function fetchQnas(fromDate, toDate) {
   const all = [];
-  let page = 0, hasMore = true;
-  while (hasMore && page < 50) {
+  // 문서: 첫 번째 페이지 번호는 1, 페이지당 최대 100건
+  let page = 1, hasMore = true;
+  while (hasMore && page <= 50) {
     const res = await call('get', '/v1/contents/qnas', {
       params: { fromDate: kstIso(fromDate), toDate: kstIso(toDate), page, size: 100 }
     });
     const body = res.data?.data ?? res.data ?? {};
     const rows = body.contents || body.items || body.list || [];
     all.push(...rows);
-    hasMore = Boolean(body.hasNext || (body.totalPages != null && page + 1 < body.totalPages));
+    hasMore = body.last === false || (body.totalPages != null && page < body.totalPages);
     page++;
     if (!rows.length) break;
   }
@@ -358,19 +359,20 @@ function mapNaverQna(channelId, q) {
   return {
     channel_id:          channelId,
     channel_question_id: String(q.questionId ?? q.commentNo ?? q.id ?? ''),
-    product_no:          q.productNo ? String(q.productNo) : null,
+    // 문서 응답 필드: questionId, productId, productName, question, answer, answered, createDate, maskedWriterId
+    product_no:          (q.productId ?? q.productNo) ? String(q.productId ?? q.productNo) : null,
     product_name:        q.productName || null,
     product_order_id:    q.productOrderId ? String(q.productOrderId) : null,
     question_type:       q.inquiryCategory || q.inquiryType || q.category || null,
     question_title:      q.title || null,
-    question_content:    q.content || q.questionContent || q.commentContent || null,
-    questioner_id:       q.writerId || q.customerId || null,
-    questioner_nickname: q.writerName || q.customerName || q.nickName || null,
+    question_content:    q.question || q.content || q.questionContent || null,
+    questioner_id:       q.maskedWriterId || q.writerId || q.customerId || null,
+    questioner_nickname: q.writerName || q.customerName || q.nickName || q.maskedWriterId || null,
     is_secret:           Boolean(q.secretYn === 'Y' || q.isSecret),
-    asked_at:            q.writeDate || q.registeredDate || q.createdDate || null,
-    answer_content:      q.commentContent || q.answerContent || null,
+    asked_at:            q.createDate || q.writeDate || q.registeredDate || q.createdDate || null,
+    answer_content:      q.answer || q.commentContent || q.answerContent || null,
     answered_at:         q.answerDate || q.replyDate || null,
-    answer_source:       (q.commentContent || q.answerContent) ? 'smartstore' : null,
+    answer_source:       (q.answer || q.commentContent || q.answerContent) ? 'smartstore' : null,
     raw_data:            q,
     synced_at:           new Date().toISOString()
   };

@@ -118,7 +118,7 @@ function mapAblyStatus(s) {
     'PREPARING':           'preparing',
     'SHIPPING':            'shipped',
     'DELIVERED':           'delivered',
-    'PURCHASE_CONFIRMED':  'delivered',
+    'PURCHASE_CONFIRMED':  'completed',
     'CANCELLED':           'cancelled',
     'RETURNED':            'returned',
   };

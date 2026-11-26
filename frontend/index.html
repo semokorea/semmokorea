@@ -290,6 +290,19 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
 .st-n { font-size: 17px; font-weight: 700; line-height: 1.3; }
 .st-tile:not(.on) .st-n { font-weight: 500; }
 .st-amt { font-size: 10px; color: var(--text2); }
+/* 쿠팡 로켓 발주 카드 */
+.rk-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px 12px 4px; }
+.rk-m { background: #fafafa; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.rk-ml { font-size: 10px; color: var(--text2); }
+.rk-mv { font-size: 15px; font-weight: 700; }
+.rk-ms { font-size: 10px; color: var(--text2); }
+.rk-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--border); cursor: pointer; }
+.rk-row:hover { background: var(--green-l); }
+.rk-no { font-family: monospace; font-weight: 700; color: var(--green); text-decoration: underline; text-underline-offset: 3px; }
+.rk-meta { font-size: 11px; color: var(--text2); margin-top: 3px; }
+.rk-amt { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.rk-amt span { font-size: 11px; font-weight: 500; color: var(--text2); }
+@media (max-width: 640px) { .rk-metrics { grid-template-columns: repeat(2, 1fr); } }
 .sum-tbl tr.total:hover td { background: #fafafa; }
 
 /* ── 재고 바 ── */
@@ -547,6 +560,20 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
             </table>
           </div>
           <div style="padding:8px 12px;font-size:11px;color:var(--text3)">주문일 기준 · 주문 = 취소/반품 포함 전체 · 순매출 = 주문금액 − 취소 − 반품 · <b>숫자를 누르면</b> 해당 주문 목록이 열립니다</div>
+        </div>
+
+        <!-- 쿠팡 로켓 발주 (서플라이어허브 발주서 엑셀 업로드) -->
+        <div class="card" id="rocket-card">
+          <div class="card-head" style="flex-wrap:wrap;gap:8px">
+            <span class="card-title">쿠팡 로켓 발주 <span style="font-weight:400;color:var(--text3);font-size:11px">서플라이어허브</span></span>
+            <div>
+              <input type="file" id="rocket-file" accept=".xlsx" multiple style="display:none" onchange="uploadRocketPos(this.files)">
+              <button class="btn btn-sm btn-green" id="rocket-upload-btn" onclick="document.getElementById('rocket-file').click()">발주서 엑셀 올리기</button>
+            </div>
+          </div>
+          <div id="rocket-metrics" class="rk-metrics"></div>
+          <div id="rocket-list"></div>
+          <div style="padding:8px 12px;font-size:11px;color:var(--text3)">서플라이어허브 → 물류 → 발주리스트에서 <b>발주서 엑셀</b>을 받아 올리세요 (여러 개 한 번에 가능). 같은 발주서를 다시 올리면 입고수량·상태가 갱신됩니다.</div>
         </div>
       </div>
 
@@ -829,6 +856,24 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
       </div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal('m-orders')">닫기</button></div>
+  </div>
+</div>
+
+<!-- 쿠팡 로켓 발주서 상세 -->
+<div class="modal-back" id="m-rocket" onclick="if(event.target===this)closeModal('m-rocket')">
+  <div class="modal-sheet modal-pc" style="max-width:960px">
+    <div class="modal-drag"></div>
+    <div class="modal-inner">
+      <div class="modal-title" id="rk-title">발주서</div>
+      <div style="font-size:12px;color:var(--text2);margin:-6px 0 10px" id="rk-sub"></div>
+      <div class="tbl-scroll" style="max-height:60vh;overflow:auto;border:1px solid var(--border);border-radius:8px">
+        <table class="tbl" style="min-width:720px">
+          <thead><tr><th style="width:36px">No</th><th style="width:90px">SKU ID</th><th>상품명 / 바코드</th><th style="width:60px;text-align:right">발주</th><th style="width:60px;text-align:right">입고</th><th style="width:90px;text-align:right">매입가</th><th style="width:110px;text-align:right">발주금액</th></tr></thead>
+          <tbody id="rk-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('m-rocket')">닫기</button></div>
   </div>
 </div>
 
@@ -1530,6 +1575,7 @@ async function loadAll() {
   const [shop, stock, sales, oem] = await Promise.all(['shop', 'stock', 'sales', 'oem'].map(loadData));
   if (!curUser) return; // 로그아웃됨
   renderShop(shop); renderStock(stock); renderSales(sales); renderOem(oem);
+  loadRocket().catch(() => {});   // 쿠팡 로켓 발주 (따로 불러옴)
   loadSyncStatus();
   // 문의 미답변 뱃지 갱신 (가볍게 백그라운드로)
   loadQna().then(() => { if (curUser) renderQna(DATA.qna); }).catch(() => {});
@@ -1539,6 +1585,165 @@ async function loadAll() {
 function errorFill(ids, tbodies, msg) {
   ids.forEach(id => document.getElementById(id).innerHTML = emptyMsg('불러오기 실패: ' + msg));
   tbodies.forEach(id => document.getElementById(id).innerHTML = `<tr><td colspan="7">${emptyMsg('불러오기 실패: ' + msg)}</td></tr>`);
+}
+
+// ══════════ 쿠팡 로켓(서플라이어허브) 발주 ══════════
+// 엑셀(.xlsx)은 zip 파일 → 브라우저 기본 기능(DecompressionStream)으로 풀어서 첫 시트의 셀을 읽는다 (외부 라이브러리 없음)
+async function readXlsxCells(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('엑셀(.xlsx) 파일이 아닙니다');
+  const files = {};
+  let p = dv.getUint32(eocd + 16, true);
+  for (let n = 0, cnt = dv.getUint16(eocd + 10, true); n < cnt; n++) {
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+    const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(buf.subarray(p + 46, p + 46 + nlen));
+    const start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
+    files[name] = { method, data: buf.subarray(start, start + csize) };
+    p += 46 + nlen + xlen + clen;
+  }
+  const text = async name => {
+    const f = files[name];
+    if (!f) return null;
+    if (f.method === 0) return new TextDecoder().decode(f.data);
+    return await new Response(new Blob([f.data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+  };
+  const xml = s => new DOMParser().parseFromString(s, 'application/xml');
+  const ssXml = await text('xl/sharedStrings.xml');
+  const shared = ssXml ? [...xml(ssXml).getElementsByTagName('si')].map(si => [...si.getElementsByTagName('t')].map(t => t.textContent).join('')) : [];
+  const sheetName = Object.keys(files).filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0];
+  if (!sheetName) throw new Error('시트를 찾을 수 없습니다');
+  const rows = {};   // rows[행번호][열문자] = 값
+  for (const c of xml(await text(sheetName)).getElementsByTagName('c')) {
+    const ref = c.getAttribute('r') || '', t = c.getAttribute('t');
+    const m = ref.match(/^([A-Z]+)(\d+)$/); if (!m) continue;
+    let v = c.getElementsByTagName('v')[0]?.textContent ?? '';
+    if (t === 's') v = shared[Number(v)] ?? '';
+    else if (t === 'inlineStr') v = [...c.getElementsByTagName('t')].map(x => x.textContent).join('');
+    (rows[m[2]] ||= {})[m[1]] = String(v).trim();
+  }
+  return rows;
+}
+
+// 서플라이어허브 "발주서" 양식(발주서 1장) → 발주서 객체
+function parseRocketPo(rows, fileName) {
+  const nums = Object.keys(rows).map(Number).sort((a, b) => a - b);
+  const get = (r, c) => rows[r]?.[c] ?? '';
+  const rowOf = (col, label) => nums.find(r => get(r, col).replace(/\s/g, '') === label);
+  const dt = s => { const m = String(s).match(/(\d{4})[\/.-](\d{2})[\/.-](\d{2})\s*(\d{2}:\d{2}(:\d{2})?)?/); return m ? `${m[1]}-${m[2]}-${m[3]}T${m[4] || '00:00:00'}` : null; };
+  const poRow = rowOf('A', '발주번호');
+  const po = {
+    file_name: fileName,
+    po_no:     poRow ? get(poRow, 'C') : (get(nums[0], 'A').match(/(\d{6,})/) || [])[1],
+    manager:   poRow ? get(poRow, 'H') : '',
+    po_type:   (r => r ? get(r, 'C') : '')(rowOf('A', '발주구분')),
+    items: []
+  };
+  const hdr = rowOf('A', '입고예정일시');
+  if (hdr) { const r = hdr + 1; Object.assign(po, { center: get(r, 'C'), center_address: get(r, 'D'), expected_dt: dt(get(r, 'F')), unloaded_dt: dt(get(r, 'G')) }); }
+  const itemHdr = nums.find(r => get(r, 'B').replace(/\s/g, '') === '상품코드');
+  if (!po.po_no || !itemHdr) throw new Error('서플라이어허브 발주서 양식이 아닙니다');
+  for (const r of nums.filter(r => r > itemHdr)) {
+    const a = get(r, 'A');
+    if (a.replace(/\s/g, '') === '합계' || /^\d+\./.test(a)) break;   // 합계 행 또는 다음 섹션("4. 입고 시 메시지")
+    if (!/^\d+$/.test(a)) continue;                                   // 품목 행만 (바로 아랫줄은 바코드/과세)
+    po.items.push({
+      line_no: a, sku_id: get(r, 'B'), product_name: get(r, 'C'), barcode: get(r + 1, 'C'),
+      buy_type: get(r, 'D'), tax_type: get(r + 1, 'D'),
+      order_qty: get(r, 'G'), deliverable_qty: get(r, 'H'), received_qty: get(r, 'I'),
+      unit_price: get(r, 'J'), supply_price: get(r, 'K'), order_amount: get(r, 'M'), received_amount: get(r, 'Q')
+    });
+  }
+  if (!po.items.length) throw new Error('상품 행을 찾지 못했습니다');
+  return po;
+}
+
+async function uploadRocketPos(fileList) {
+  const files = [...(fileList || [])];
+  const input = document.getElementById('rocket-file');
+  if (!files.length) return;
+  const btn = document.getElementById('rocket-upload-btn');
+  btn.disabled = true; btn.textContent = '읽는 중…';
+  const pos = [], bad = [];
+  for (const f of files) {
+    try { pos.push(parseRocketPo(await readXlsxCells(f), f.name)); }
+    catch (e) { bad.push(`${f.name}: ${e.message}`); }
+  }
+  try {
+    if (!pos.length) throw new Error(bad.join('\n') || '읽은 발주서가 없습니다');
+    btn.textContent = '저장 중…';
+    const res = await apiFetch('/data?action=rocket_po_save', { method: 'POST', body: JSON.stringify({ pos }) });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+    if (!res.ok) throw new Error(r.error || res.status);
+    const lines = (r.saved || []).map(s => `· ${s.po_no} — SKU ${s.sku_count}개, ${won(s.order_amount)}원 (${ROCKET_STATUS[s.status]?.[0] || s.status})`);
+    alert(`발주서 ${lines.length}건 저장\n\n${lines.join('\n')}` + (bad.length ? `\n\n읽지 못한 파일:\n${bad.join('\n')}` : ''));
+    await loadRocket();
+  } catch (e) {
+    alert('발주서 올리기 실패: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '발주서 엑셀 올리기';
+    input.value = '';
+  }
+}
+
+const ROCKET_STATUS = { pending: ['입고대기', 'b-wait'], partial: ['부분입고', 'b-new'], received: ['입고완료', 'b-done'] };
+
+async function loadRocket() {
+  const d = await loadData('rocket');
+  if (curUser) renderRocket(d);
+}
+
+function renderRocket(d) {
+  const mEl = document.getElementById('rocket-metrics'), list = document.getElementById('rocket-list');
+  if (!d || d._error) {
+    mEl.innerHTML = '';
+    list.innerHTML = emptyMsg('불러오기 실패: ' + (d?._error || ''));
+    return;
+  }
+  const m = d.metrics || {};
+  const mt = (label, val, sub = '') => `<div class="rk-m"><div class="rk-ml">${label}</div><div class="rk-mv">${val}</div>${sub ? `<div class="rk-ms">${sub}</div>` : ''}</div>`;
+  mEl.innerHTML =
+    mt('이번 달 발주', won(m.month_count || 0) + '건', man(m.month_amount || 0)) +
+    mt('이번 달 입고', man(m.month_received || 0)) +
+    mt('입고 대기', won(m.pending || 0) + '건') +
+    mt('올해 누적', man(m.year_amount || 0));
+  const pos = d.pos || [];
+  if (!pos.length) { list.innerHTML = emptyMsg('아직 올린 발주서가 없습니다'); return; }
+  list.innerHTML = pos.map(p => {
+    const [lbl, cls] = ROCKET_STATUS[p.status] || [p.status, 'b-draft'];
+    return `<div class="rk-row" onclick="openRocketPo(${Number(p.id)})">
+      <div class="rk-main">
+        <div><span class="rk-no">${esc(p.po_no)}</span> <span class="badge ${cls}">${esc(lbl)}</span></div>
+        <div class="rk-meta">입고예정 ${esc(fmtDate(p.expected_dt) || '-')} · ${esc(p.center || '-')} · ${esc(p.po_type || '')} · SKU ${won(p.sku_count)}개 · ${won(p.received_qty)}/${won(p.order_qty)}개</div>
+      </div>
+      <div class="rk-amt">${won(p.order_amount)}<span>원</span></div>
+    </div>`;
+  }).join('');
+}
+
+function openRocketPo(id) {
+  const p = (DATA.rocket?.pos || []).find(x => Number(x.id) === Number(id));
+  if (!p) return;
+  const [lbl] = ROCKET_STATUS[p.status] || [p.status];
+  document.getElementById('rk-title').textContent = `발주서 ${p.po_no} · ${lbl}`;
+  document.getElementById('rk-sub').textContent =
+    `입고예정 ${fmtDate(p.expected_dt) || '-'} · ${p.center || '-'}` + (p.unloaded_dt ? ` · 하차 ${String(p.unloaded_dt).slice(0, 16).replace('T', ' ')}` : '') +
+    ` · ${p.po_type || ''} · 담당 ${p.manager || '-'} · 발주 ${won(p.order_qty)}개 / 입고 ${won(p.received_qty)}개 · 발주금액 ${won(p.order_amount)}원`;
+  const items = (p.rocket_po_items || []).slice().sort((a, b) => (a.line_no || 0) - (b.line_no || 0));
+  document.getElementById('rk-tbody').innerHTML = items.map(it => `<tr>
+      <td>${esc(it.line_no ?? '')}</td>
+      <td style="font-family:monospace;font-size:11px">${esc(it.sku_id || '')}</td>
+      <td title="${esc(it.product_name || '')}">${esc(it.product_name || '')}<div style="font-size:10px;color:var(--text3);font-family:monospace">${esc(it.barcode || '')}</div></td>
+      <td style="text-align:right">${won(it.order_qty)}</td>
+      <td style="text-align:right;${it.received_qty < it.order_qty ? 'color:var(--red);font-weight:600' : ''}">${won(it.received_qty)}</td>
+      <td style="text-align:right">${won(it.unit_price)}</td>
+      <td style="text-align:right">${won(it.order_amount)}</td>
+    </tr>`).join('') || `<tr><td colspan="7">${emptyMsg('품목이 없습니다')}</td></tr>`;
+  openModal('m-rocket');
 }
 
 // ── 쇼핑몰: 주문 현황 + 배송 처리 ──

@@ -1,6 +1,6 @@
 // api/data/index.js
 // GET  /api/data?type=shop|stock|sales|oem|qna  — 어드민 화면용 조회 API
-// POST /api/data (action=collect_qna|answer_qna)  — Q&A 수집/답변 (Vercel 함수 개수 제한 때문에 여기에 묶음)
+// POST /api/data (action=collect_qna|answer_qna|rocket_po_save) — Q&A 수집/답변, 로켓 발주서 저장 (Vercel 함수 개수 제한 때문에 여기에 묶음)
 const { supabase } = require('../../utils/supabase');
 const { verifyRequest } = require('../../utils/auth');
 
@@ -287,12 +287,103 @@ async function getQna({ days, onlyUnanswered } = {}) {
   };
 }
 
-const HANDLERS = { shop: getShop, stock: getStock, sales: getSales, oem: getOem, qna: getQna };
+// ── 쿠팡 로켓(서플라이어허브) 발주 ──
+async function getRocket() {
+  const monthStart = kstDate().slice(0, 8) + '01';
+  const yearStart  = kstDate().slice(0, 5) + '01-01';
+  const { data, error } = await supabase
+    .from('rocket_pos')
+    .select(`id, po_no, po_type, manager, center, expected_dt, unloaded_dt, sku_count, order_qty, deliverable_qty,
+             received_qty, order_amount, received_amount, status, file_name, updated_at,
+             rocket_po_items ( line_no, sku_id, product_name, barcode, order_qty, received_qty, unit_price, order_amount, received_amount )`)
+    .order('expected_dt', { ascending: false, nullsFirst: false })
+    .limit(500);
+  check(error);
+  const pos = data || [];
+  const day = r => String(r.expected_dt || '').slice(0, 10);
+  const inMonth = pos.filter(p => day(p) >= monthStart);
+  const inYear  = pos.filter(p => day(p) >= yearStart);
+  const sum = (list, k) => list.reduce((s, p) => s + Number(p[k] || 0), 0);
+  return {
+    metrics: {
+      month_count:    inMonth.length,
+      month_amount:   sum(inMonth, 'order_amount'),
+      month_received: sum(inMonth, 'received_amount'),
+      pending:        pos.filter(p => p.status !== 'received').length,
+      year_amount:    sum(inYear, 'received_amount') || sum(inYear, 'order_amount')
+    },
+    pos
+  };
+}
+
+// 발주서 저장: 브라우저가 엑셀을 읽어 보낸 발주서(들)를 발주번호 기준으로 덮어쓴다
+async function saveRocketPos(list, user) {
+  if (!Array.isArray(list) || !list.length) throw new Error('저장할 발주서가 없습니다.');
+  const toInt = v => Math.round(Number(String(v ?? '').replace(/[^0-9.-]/g, '')) || 0);
+  const saved = [];
+  for (const p of list.slice(0, 50)) {
+    const poNo = String(p.po_no || '').trim();
+    if (!/^\d+$/.test(poNo)) throw new Error(`발주번호를 읽지 못했습니다 (${p.file_name || '파일'})`);
+    const items = (p.items || []).map((it, i) => ({
+      line_no:         toInt(it.line_no) || i + 1,
+      sku_id:          String(it.sku_id || '').trim() || null,
+      product_name:    String(it.product_name || '').trim() || null,
+      barcode:         String(it.barcode || '').trim() || null,
+      buy_type:        it.buy_type || null,
+      tax_type:        it.tax_type || null,
+      order_qty:       toInt(it.order_qty),
+      deliverable_qty: toInt(it.deliverable_qty),
+      received_qty:    toInt(it.received_qty),
+      unit_price:      toInt(it.unit_price),
+      supply_price:    toInt(it.supply_price),
+      order_amount:    toInt(it.order_amount),
+      received_amount: toInt(it.received_amount)
+    }));
+    const tot = k => items.reduce((s, it) => s + it[k], 0);
+    const orderQty = tot('order_qty'), receivedQty = tot('received_qty');
+    const status = receivedQty <= 0 ? 'pending' : receivedQty < orderQty ? 'partial' : 'received';
+    const row = {
+      po_no:           poNo,
+      po_type:         p.po_type || null,
+      manager:         p.manager || null,
+      center:          p.center || null,
+      center_address:  p.center_address || null,
+      expected_dt:     p.expected_dt || null,
+      unloaded_dt:     p.unloaded_dt || null,
+      sku_count:       items.length,
+      order_qty:       orderQty,
+      deliverable_qty: tot('deliverable_qty'),
+      received_qty:    receivedQty,
+      order_amount:    tot('order_amount'),
+      received_amount: tot('received_amount'),
+      status,
+      file_name:       p.file_name || null,
+      uploaded_by:     user?.username || 'admin',
+      updated_at:      new Date().toISOString()
+    };
+    const { data: po, error } = await supabase.from('rocket_pos').upsert(row, { onConflict: 'po_no' }).select('id').single();
+    check(error);
+    const del = await supabase.from('rocket_po_items').delete().eq('po_id', po.id);
+    check(del.error);
+    if (items.length) {
+      const ins = await supabase.from('rocket_po_items').insert(items.map(it => ({ po_id: po.id, ...it })));
+      check(ins.error);
+    }
+    saved.push({ po_no: poNo, status, sku_count: items.length, order_amount: row.order_amount });
+  }
+  return { ok: true, saved };
+}
+
+const HANDLERS = { shop: getShop, stock: getStock, sales: getSales, oem: getOem, qna: getQna, rocket: getRocket };
 
 // ── POST 액션: Q&A 수집 / 답변 등록 ──
 async function postAction(req, payload) {
   const naver = require('../../sync/naver');
   const action = req.query.action || payload.action;
+
+  if (action === 'rocket_po_save') {
+    return await saveRocketPos(payload.pos, req.user);
+  }
 
   if (action === 'collect_qna') {
     return await naver.syncQnas({ days: payload.days });
@@ -343,7 +434,7 @@ module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
       const handler = HANDLERS[req.query.type];
-      if (!handler) return res.status(400).json({ error: 'type은 shop|stock|sales|oem|qna 중 하나' });
+      if (!handler) return res.status(400).json({ error: 'type은 shop|stock|sales|oem|qna|rocket 중 하나' });
       return res.status(200).json(await handler(req.query));
     }
     if (req.method === 'POST') {

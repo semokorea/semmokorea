@@ -5,3 +5,7 @@ node_modules/
 .DS_Store
 dist/
 .vercel/
+
+# 업로드용 원본 엑셀(개인정보 포함) — 저장소에 올리지 않음
+/*.xlsx
+/*.xls

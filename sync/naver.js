@@ -378,13 +378,13 @@ function mapNaverStatus(s, place) {
 // ────────────────────────────────────────────────────────────
 
 // Q&A 목록 조회 (페이지네이션)
-async function fetchQnas(fromDate, toDate) {
+async function fetchQnas(fromDate, toDate, { answered } = {}) {
   const all = [];
   // 문서: 첫 번째 페이지 번호는 1, 페이지당 최대 100건
   let page = 1, hasMore = true;
   while (hasMore && page <= 50) {
     const res = await call('get', '/v1/contents/qnas', {
-      params: { fromDate: kstIso(fromDate), toDate: kstIso(toDate), page, size: 100 }
+      params: { fromDate: kstIso(fromDate), toDate: kstIso(toDate), page, size: 100, ...(answered === undefined ? {} : { answered }) }
     });
     const body = res.data?.data ?? res.data ?? {};
     const rows = body.contents || body.items || body.list || [];
@@ -427,14 +427,36 @@ async function syncQnas({ days = 7 } = {}) {
   const now = new Date(Date.now() - 5000);
   const from = new Date(now.getTime() - nDays * 24 * 3600 * 1000);
 
-  let synced = 0, errors = 0, errMsg = '';
+  let synced = 0, errors = 0, errMsg = '', removed = 0;
   let qnas = [];
+  let fetched = false;
   try {
-    qnas = await fetchQnas(from, now);
+    // 미답변 문의만 가져온다 (문서: answered=false). 혹시 답변된 게 섞여 오면 아래에서 거른다
+    qnas = (await fetchQnas(from, now, { answered: false })).filter(q => q.answered !== true);
+    fetched = true;
   } catch (e) {
     errMsg = `문의 조회 실패: ${errText(e)}`;
     console.error('[NAVER-QNA]', errMsg);
     errors++;
+  }
+
+  // 어드민에는 미답변으로 남아 있는데 이번 미답변 목록에 없는 문의 = 스마트스토어에서 답변됐거나 삭제됨 → 목록에서 지운다
+  // (어드민에서 직접 답변한 문의는 answer_content가 있으므로 건드리지 않음)
+  if (fetched) {
+    const ids = new Set(qnas.map(q => String(q.questionId ?? q.id ?? '')));
+    const { data: open, error } = await supabase
+      .from('product_qnas')
+      .select('id, channel_question_id')
+      .eq('channel_id', channelId)
+      .is('answer_content', null)
+      .gte('asked_at', kstIso(from).slice(0, 19));
+    if (!error) {
+      const gone = (open || []).filter(r => !ids.has(String(r.channel_question_id))).map(r => r.id);
+      if (gone.length) {
+        const del = await supabase.from('product_qnas').delete().in('id', gone);
+        if (!del.error) removed = gone.length;
+      }
+    }
   }
 
   for (const q of qnas) {
@@ -463,7 +485,7 @@ async function syncQnas({ days = 7 } = {}) {
     }
   }
 
-  const message = `문의 ${qnas.length}건 조회 · 저장 ${synced}건` + (errMsg ? ` · ${errMsg}` : '');
+  const message = `미답변 문의 ${qnas.length}건 · 저장 ${synced}건` + (removed ? ` · 스마트스토어에서 답변된 ${removed}건 정리` : '') + (errMsg ? ` · ${errMsg}` : '');
   await logSync('naver-qna', { synced, errors, message });
   return { synced, errors, message };
 }

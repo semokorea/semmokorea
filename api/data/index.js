@@ -374,7 +374,7 @@ async function saveRocketPos(list, user) {
   return { ok: true, saved };
 }
 
-// ── 메인 대시보드: 매출원별(네이버·쿠팡·쿠팡 로켓·OEM) 연도/월 매출 + 처리할 일 + TOP 5 ──
+// ── 메인 대시보드: 매출원별(네이버·쿠팡·쿠팡 로켓·OEM) 연도/월 매출 + 처리할 일 ──
 // 금액 기준은 모두 "VAT 포함 실제 거래 금액"으로 맞춘다
 //  - 쇼핑몰: orders.total_amount (결제금액), 취소·반품 제외, 주문일 기준
 //  - 쿠팡 로켓: rocket_pos.received_amount (입고금액, 없으면 발주금액), 입고예정일 기준
@@ -385,10 +385,10 @@ async function getDashboard({ year } = {}) {
   const selYear = Number(year) || thisYear;
   const [shop, oem, rocket, qna] = await Promise.all([
     supabase.from('orders')
-      .select('order_dt, total_amount, status, channels ( code ), order_items ( product_name, quantity, total_amount )')
+      .select('order_dt, total_amount, status, channels ( code )')
       .limit(50000),
     supabase.from('oem_orders')
-      .select('order_dt, total_amount, vat_amount, status, oem_clients ( name )')
+      .select('order_dt, total_amount, vat_amount, status')
       .limit(20000),
     supabase.from('rocket_pos')
       .select('expected_dt, order_amount, received_amount, status')
@@ -404,31 +404,15 @@ async function getDashboard({ year } = {}) {
     (months[ym] ||= { naver: 0, coupang: 0, rocket: 0, oem: 0 })[src] += amt;
   };
   const sold = o => !['cancelled', 'returned'].includes(o.status);
-  const products = {};
   for (const o of shop.data || []) {
     const code = o.channels?.code;
     if (!sold(o) || !DASH_SOURCES.includes(code)) continue;
     add(o.order_dt, code, Number(o.total_amount || 0));
-    if (String(o.order_dt || '').startsWith(String(selYear))) {
-      for (const it of o.order_items || []) {
-        const k = it.product_name || '(상품명 없음)';
-        const p = (products[k] ||= { name: k, qty: 0, amount: 0 });
-        p.qty += Number(it.quantity || 0);
-        p.amount += Number(it.total_amount || 0);
-      }
-    }
   }
   for (const r of rocket.data || []) add(r.expected_dt, 'rocket', Number(r.received_amount || 0) || Number(r.order_amount || 0));
-  const clients = {};
   for (const o of oem.data || []) {
     if (['quoted', 'cancelled'].includes(o.status)) continue;
-    const amt = Number(o.total_amount || 0) + Number(o.vat_amount || 0);
-    add(o.order_dt, 'oem', amt);
-    if (String(o.order_dt || '').startsWith(String(selYear))) {
-      const k = o.oem_clients?.name || '(거래처 없음)';
-      const c = (clients[k] ||= { name: k, count: 0, amount: 0 });
-      c.count++; c.amount += amt;
-    }
+    add(o.order_dt, 'oem', Number(o.total_amount || 0) + Number(o.vat_amount || 0));
   }
 
   // 연도별 합계 (올해는 데이터가 없어도 항상 포함)
@@ -467,8 +451,6 @@ async function getDashboard({ year } = {}) {
       oem_unsettled_amount: unsettled.reduce((s, o) => s + Number(o.total_amount || 0) + Number(o.vat_amount || 0), 0),
       rocket_pending: (rocket.data || []).filter(r => r.status !== 'received').length
     },
-    top_products: Object.values(products).sort((a, b) => b.amount - a.amount).slice(0, 5),
-    top_clients:  Object.values(clients).sort((a, b) => b.amount - a.amount).slice(0, 5)
   };
 }
 

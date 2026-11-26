@@ -587,16 +587,7 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
         </div>
       </div>
 
-      <div class="section-grid">
-        <div class="card">
-          <div class="card-head"><span class="card-title" id="dash-prod-title">쇼핑몰 인기 상품 TOP 5</span></div>
-          <div id="dash-products"></div>
-        </div>
-        <div class="card">
-          <div class="card-head"><span class="card-title" id="dash-client-title">OEM 거래처 TOP 5</span></div>
-          <div id="dash-clients"></div>
-        </div>
-      </div>
+      <!-- 네이버 광고 데이터 자리 (연동 예정) -->
     </div>
 
     <!-- ══════ 쇼핑몰 ══════ -->
@@ -1724,7 +1715,7 @@ function renderDash(d) {
   const kpis = document.getElementById('dash-kpis');
   if (!d || d._error) {
     kpis.innerHTML = emptyMsg('불러오기 실패: ' + (d?._error || ''));
-    ['dash-chart', 'dash-todo', 'dash-mix', 'dash-products', 'dash-clients'].forEach(id => document.getElementById(id).innerHTML = '');
+    ['dash-chart', 'dash-todo', 'dash-mix'].forEach(id => document.getElementById(id).innerHTML = '');
     document.getElementById('dash-years-tbl').innerHTML = '';
     return;
   }
@@ -1789,14 +1780,6 @@ function renderDash(d) {
     return `<div class="mix-row"><div class="mix-l">${s.label}</div><div class="mix-track"><div class="mix-bar" style="width:${Math.max(p, v ? 1 : 0)}%;background:var(--s-${s.key})"></div></div><div class="mix-v">${p.toFixed(0)}% · ${dashMoney(v)}</div></div>`;
   }).join('');
 
-  // TOP 5
-  const top = (list, sub) => list.length ? list.map((r, i) =>
-    `<div class="top-row"><span class="top-rank">${i + 1}</span><span class="top-name" title="${esc(r.name)}">${esc(r.name)}</span><span class="top-sub">${sub(r)}</span><span class="top-amt">${dashMoney(r.amount)}</span></div>`).join('')
-    : emptyMsg(`${Y}년 데이터가 없습니다`);
-  document.getElementById('dash-prod-title').textContent = `${Y}년 쇼핑몰 인기 상품 TOP 5`;
-  document.getElementById('dash-client-title').textContent = `${Y}년 OEM 거래처 TOP 5`;
-  document.getElementById('dash-products').innerHTML = top(d.top_products || [], r => `${won(r.qty)}개`);
-  document.getElementById('dash-clients').innerHTML = top(d.top_clients || [], r => `${won(r.count)}건`);
 }
 
 // 월별 쌓은 막대 (SVG). 막대마다 마우스/터치 → 월 합계와 매출원별 금액 툴팁

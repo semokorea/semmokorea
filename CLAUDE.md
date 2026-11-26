@@ -38,7 +38,7 @@
 
 ### ❌ 남은 작업
 1. **쿠팡 Wing 연결 확인 + 서플라이어허브 발주 엑셀 업로드** — 아래 "쇼핑몰 연동 현황" 참고 (에이블리·지그재그는 연동 안 하기로 함)
-2. 15분 자동 수집: Vercel Hobby 크론은 하루 1회 → **cron-job.org** 등이 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출 (CRON_SECRET은 Vercel에 있음)
+2. 자동 수집: **매일 08:00 · 12:00 · 18:00(KST)** Vercel Cron 3개(`vercel.json`, UTC 23·3·9시, Hobby는 예약당 하루 1번·시간대 안에서 최대 59분 지연). 더 자주 하려면 cron-job.org 등이 `/api/cron/sync`를 `Authorization: Bearer <CRON_SECRET>`로 호출
 3. 수집 속도 개선: 주문 1건당 DB 3회 호출이라 7일치에서 45초 제한에 걸림 → upsert/insert 일괄 처리로 바꿀 것
 4. 초기 비밀번호 변경(admin·manager) 확인, 바탕화면 `클로드코드/PROXY_URL_for_vercel.txt` 삭제 확인
 5. 주문 발송 시 재고 자동 차감(주문 상품 ↔ 등록 상품 매칭 필요), 상품 수정·삭제

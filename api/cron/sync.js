@@ -1,6 +1,7 @@
 // api/cron/sync.js
 // 자동 수집 엔드포인트 (Authorization: Bearer CRON_SECRET 필요)
-// - Vercel Cron(Hobby 플랜은 하루 1회까지) → vercel.json 참고
+// - Vercel Cron: 매일 08:00 / 12:00 / 18:00 (한국시간) — vercel.json의 crons 3개(UTC 23시·3시·9시)
+//   Hobby 플랜은 예약 하나당 하루 1번만 가능해서 같은 주소로 예약을 3개 둔다. 실행 시각은 그 시간대 안(최대 59분 늦게)에서 돈다
 // - 15분 간격은 외부 스케줄러(cron-job.org 등)가 이 URL을 호출
 
 const { runAllSync } = require('../../sync/scheduler');

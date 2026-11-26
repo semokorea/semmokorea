@@ -8,6 +8,8 @@
     "api/shipments/bulk.js": { "maxDuration": 60 }
   },
   "crons": [
-    { "path": "/api/cron/sync", "schedule": "0 21 * * *" }
+    { "path": "/api/cron/sync", "schedule": "0 23 * * *" },
+    { "path": "/api/cron/sync", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/sync", "schedule": "0 9 * * *" }
   ]
 }

@@ -21,13 +21,27 @@ const STATUSES = ['ACCEPT', 'INSTRUCT', 'DEPARTURE', 'DELIVERING', 'FINAL_DELIVE
 const TIME_BUDGET_MS = 45000;
 
 function keys() {
-  const accessKey = process.env.COUPANG_ACCESS_KEY;
-  const secretKey = process.env.COUPANG_SECRET_KEY;
-  const vendorId  = process.env.COUPANG_VENDOR_ID;
+  // 복사할 때 붙은 앞뒤 공백·줄바꿈·따옴표를 잘라낸다 ("key is not registered" 방지)
+  const clean = v => String(v || '').trim().replace(/^["']|["']$/g, '').trim();
+  const accessKey = clean(process.env.COUPANG_ACCESS_KEY);
+  const secretKey = clean(process.env.COUPANG_SECRET_KEY);
+  const vendorId  = clean(process.env.COUPANG_VENDOR_ID);
   if (!accessKey || !secretKey || !vendorId) {
     throw new Error('COUPANG_ACCESS_KEY / COUPANG_SECRET_KEY / COUPANG_VENDOR_ID 환경변수가 없습니다.');
   }
   return { accessKey, secretKey, vendorId };
+}
+
+// 401일 때 원인 짐작용 힌트 — 키 값은 절대 넣지 않고 길이·형식만 알려준다.
+// 쿠팡 Access Key는 보통 36자(하이픈 포함 UUID), Secret Key는 40자 내외 영숫자.
+function keyHint() {
+  try {
+    const { accessKey, secretKey, vendorId } = keys();
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accessKey);
+    const swapped = !uuid && /^[0-9a-f]{8}-/i.test(secretKey);
+    return `Access Key ${accessKey.length}자${uuid ? '·형식 정상' : '·형식 다름'}, Secret Key ${secretKey.length}자, 업체코드 ${/^A\d+$/.test(vendorId) ? '형식 정상' : '형식 확인 필요'}` +
+      (swapped ? ' — Access/Secret이 서로 바뀐 것 같아요' : uuid ? ' — 형식은 맞으니 키 활성화(최대 24시간) 대기일 수 있어요' : '');
+  } catch (_) { return '키 확인 불가'; }
 }
 
 // ── HMAC 서명 ── signed-date: yyMMdd'T'HHmmss'Z' (UTC, 연도 2자리)
@@ -178,6 +192,7 @@ async function syncOrders({ days = 1 } = {}) {
     }
   } catch (e) {
     errMsg = `API 오류: ${errText(e)}`;
+    if (e.response?.status === 401) errMsg += ` (${keyHint()})`;
     console.error('[COUPANG]', errMsg);
     errors++;
   }

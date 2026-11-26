@@ -24,7 +24,8 @@ async function getShop({ days } = {}) {
   const nDays = Math.max(1, Math.min(90, parseInt(days, 10) || 7));
   const since = kstDate(-(nDays - 1));
 
-  const [recent, pending, todayOrders, shippedToday, shipping, delivered] = await Promise.all([
+  const monthStart = today.slice(0, 8) + '01';
+  const [recent, pending, todayOrders, shippedToday, shipping, delivered, monthOrders] = await Promise.all([
     supabase
       .from('orders')
       .select(`
@@ -65,16 +66,27 @@ async function getShop({ days } = {}) {
     supabase
       .from('orders')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'delivered')
+      .eq('status', 'delivered'),
+    // 이번 달 주문 (주문일 기준, 취소·반품 제외는 아래에서)
+    supabase
+      .from('orders')
+      .select('total_amount, status')
+      .gte('order_dt', monthStart)
+      .lt('order_dt', kstDate(1))
+      .limit(20000)
   ]);
-  [recent, pending, todayOrders, shippedToday, shipping, delivered].forEach(r => check(r.error));
+  [recent, pending, todayOrders, shippedToday, shipping, delivered, monthOrders].forEach(r => check(r.error));
 
   const todayRows = todayOrders.data || [];
   const live = todayRows.filter(o => o.status !== 'cancelled');
+  const monthLive = (monthOrders.data || []).filter(o => o.status !== 'cancelled' && o.status !== 'returned');
   return {
     metrics: {
       today_orders:    live.length,
-      pending:         (pending.data || []).length,
+      new_orders:      (pending.data || []).filter(o => o.status === 'new').length,   // 신규주문(발주확인 전)
+      pending:         (pending.data || []).filter(o => o.status !== 'new').length,   // 배송준비중(발주확인 후)
+      month_orders:    monthLive.length,
+      month_amount:    monthLive.reduce((s, o) => s + (o.total_amount || 0), 0),
       shipped_today:   shippedToday.count || 0,
       today_sales:     live.reduce((s, o) => s + (o.total_amount || 0), 0),
       shipping:        shipping.count || 0,          // 전체 배송중(아직 도착 전)

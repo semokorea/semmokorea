@@ -151,7 +151,7 @@ async function syncOrders({ days = 1 } = {}) {
         const r = await saveDetail(channelId, d);
         if (r === true) {
           refreshed++;
-          if (open.get(id) !== mapNaverStatus(d.productOrder?.productOrderStatus)) statusChanged++;
+          if (open.get(id) !== mapNaverStatus(d.productOrder?.productOrderStatus, d.productOrder?.placeOrderStatus)) statusChanged++;
         } else { errors++; errMsg = errMsg || r; }
       }
     }
@@ -171,7 +171,7 @@ async function syncOrders({ days = 1 } = {}) {
 }
 
 // 진행 중(아직 구매확정·취소·반품이 아닌) 주문: 상품주문번호 → 현재 상태
-const OPEN_STATUSES = ['new', 'confirmed', 'preparing', 'ready', 'shipped', 'delivered'];  // 배송완료도 구매확정·반품으로 바뀌므로 계속 확인
+const OPEN_STATUSES = ['waiting', 'new', 'confirmed', 'preparing', 'ready', 'shipped', 'delivered'];  // 배송완료도 구매확정·반품으로 바뀌므로 계속 확인
 const OPEN_LOOKBACK_DAYS = 60;
 async function openOrders(channelId) {
   const since = new Date(Date.now() + 9 * 3600 * 1000 - OPEN_LOOKBACK_DAYS * 24 * 3600 * 1000).toISOString().slice(0, 10);
@@ -287,7 +287,7 @@ function mapNaverOrder(channelId, d) {
     channel_id:        channelId,
     channel_order_no:  String(o.orderId || po.orderId || ''),
     channel_item_no:   String(po.productOrderId || ''),
-    status:            mapNaverStatus(po.productOrderStatus),
+    status:            mapNaverStatus(po.productOrderStatus, po.placeOrderStatus),
     buyer_name:        o.ordererName || null,
     buyer_id:          o.ordererId || null,
     buyer_phone:       o.ordererTel || null,
@@ -313,10 +313,11 @@ function mapNaverOrder(channelId, d) {
 }
 
 // productOrderStatus (문서: 주문 상태 변경 흐름도)
-function mapNaverStatus(s) {
+// 결제완료(PAYED)는 발주확인(placeOrderStatus=OK) 전이면 신규주문, 후면 배송준비중 — 판매자센터와 같은 구분
+function mapNaverStatus(s, place) {
+  if (s === 'PAYED') return place === 'OK' ? 'confirmed' : 'new';
   const m = {
-    PAYMENT_WAITING:       'new',
-    PAYED:                 'confirmed',
+    PAYMENT_WAITING:       'waiting',     // 입금대기 (신규주문에 넣지 않음)
     DELIVERING:            'shipped',
     DELIVERED:             'delivered',
     PURCHASE_DECIDED:      'completed',   // 구매확정 (배송완료와 따로 센다)

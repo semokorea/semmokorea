@@ -406,7 +406,7 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
 }
 @media (min-width: 1024px) {
   .metrics { grid-template-columns: repeat(4, 1fr); }
-  #shop-metrics { grid-template-columns: repeat(5, 1fr); }
+  #shop-metrics { grid-template-columns: repeat(6, 1fr); }
   .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 }
 .section-grid { display: block; }
@@ -514,6 +514,7 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
                 <th class="num">주문</th>
                 <th class="num">취소</th>
                 <th class="num">반품</th>
+                <th class="num">신규주문</th>
                 <th class="num">배송준비중</th>
                 <th class="num">배송중</th>
                 <th class="num">배송완료</th>
@@ -1445,7 +1446,8 @@ function renderTL(id) {
 const DATA = { shop: null, stock: null, sales: null, oem: null, qna: null };
 const CH_CLS = { naver: 'ch-n', coupang: 'ch-c', ably: 'ch-a', zigzag: 'ch-z' };
 const ORDER_STATUS = {
-  new:       ['신규', 'b-new'],
+  waiting:   ['입금대기', 'b-draft'],
+  new:       ['신규주문', 'b-new'],
   confirmed: ['배송준비중', 'b-wait'],
   preparing: ['배송준비중', 'b-wait'],
   ready:     ['배송준비중', 'b-wait'],
@@ -1525,8 +1527,9 @@ function renderShop(d) {
   }
   const m = d.metrics;
   document.getElementById('shop-metrics').innerHTML =
-    metric('오늘 주문', won(m.today_orders) + '건', '취소 제외') +
-    metric('배송준비중', won(m.pending) + '건', m.pending ? '처리 필요' : '', 'color:var(--amber)', 'dn') +
+    metric('이번 달 주문', won(m.month_orders ?? 0) + '건', `${won(m.month_amount ?? 0)}원 · 취소 제외`) +
+    metric('신규주문', won(m.new_orders ?? 0) + '건', m.new_orders ? '발주확인 필요' : '', 'color:var(--red)', 'dn') +
+    metric('배송준비중', won(m.pending) + '건', m.pending ? '발송 필요' : '', 'color:var(--amber)', 'dn') +
     metric('배송중', won(m.shipping || 0) + '건', '전체') +
     metric('배송완료', won(m.delivered ?? 0) + '건', '구매확정 전', 'color:#16a34a') +
     metric('오늘매출', man(m.today_sales), '', 'font-size:16px');
@@ -1541,12 +1544,13 @@ const STORES = [
   { code: 'ably',    name: '에이블리' },
   { code: 'zigzag',  name: '지그재그' }
 ];
-// 집계 구분: all=전체 주문, cancel=취소, return=반품, pending=배송준비중, shipping=배송중, delivered=배송완료, completed=구매확정
+// 집계 구분: all=전체 주문, cancel=취소, return=반품, new=신규주문, pending=배송준비중, shipping=배송중, delivered=배송완료, completed=구매확정
 const SUM_KIND = {
   all:     { label: '주문',     test: () => true },
   cancel:  { label: '취소',     test: o => o.status === 'cancelled' },
   return:  { label: '반품',     test: o => o.status === 'returned' },
-  pending:   { label: '배송준비중', test: o => PENDING_STATUS.includes(o.status) },
+  new:       { label: '신규주문',   test: o => o.status === 'new' },
+  pending:   { label: '배송준비중', test: o => PENDING_STATUS.includes(o.status) && o.status !== 'new' },
   shipping:  { label: '배송중',     test: o => o.status === 'shipped' },
   delivered: { label: '배송완료',   test: o => o.status === 'delivered' },
   completed: { label: '구매확정',   test: o => o.status === 'completed' }
@@ -1556,7 +1560,7 @@ let summaryDays = 7;
 async function setSummaryDays(d) {
   summaryDays = d;
   document.querySelectorAll('#sum-periods .fpill').forEach(b => b.classList.toggle('on', Number(b.dataset.d) === d));
-  document.getElementById('sum-tbody').innerHTML = `<tr><td colspan="9">${emptyMsg('불러오는 중…')}</td></tr>`;
+  document.getElementById('sum-tbody').innerHTML = `<tr><td colspan="10">${emptyMsg('불러오는 중…')}</td></tr>`;
   const r = await loadData('shop');
   if (r) renderShop(DATA.shop);
 }
@@ -1575,7 +1579,7 @@ function renderOrders() {
   const cell = (store, kind, color = '') => {
     const list = ordersOf(store, kind);
     const n = list.length;
-    const amt = ['pending', 'shipping', 'delivered', 'completed'].includes(kind) ? '' : `<span class="amt">${won(amountOf(list))}원</span>`;
+    const amt = ['new', 'pending', 'shipping', 'delivered', 'completed'].includes(kind) ? '' : `<span class="amt">${won(amountOf(list))}원</span>`;
     const num = n
       ? `<a class="cnt ${color}" onclick="openOrderList('${store}','${kind}')" title="눌러서 목록 보기">${won(n)}</a>`
       : `<span class="cnt" style="color:var(--text3);font-weight:500">0</span>`;
@@ -1588,7 +1592,7 @@ function renderOrders() {
   const row = (store, name, total = false) =>
     `<tr class="${total ? 'total' : ''}"><td>${total ? '<b>합계</b>' : chTag({ code: store, name })}</td>` +
     cell(store, 'all') + cell(store, 'cancel', 'red') + cell(store, 'return', 'red') +
-    cell(store, 'pending', 'amber') + cell(store, 'shipping', 'blue') + cell(store, 'delivered') + cell(store, 'completed') + net(store) + '</tr>';
+    cell(store, 'new', 'red') + cell(store, 'pending', 'amber') + cell(store, 'shipping', 'blue') + cell(store, 'delivered') + cell(store, 'completed') + net(store) + '</tr>';
 
   tbody.innerHTML = STORES.map(s => row(s.code, s.name)).join('') + row('all', '합계', true);
 }

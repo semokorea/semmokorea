@@ -23,24 +23,32 @@ const TIME_BUDGET_MS = 45000;
 function keys() {
   // 복사할 때 붙은 앞뒤 공백·줄바꿈·따옴표를 잘라낸다 ("key is not registered" 방지)
   const clean = v => String(v || '').trim().replace(/^["']|["']$/g, '').trim();
-  const accessKey = clean(process.env.COUPANG_ACCESS_KEY);
-  const secretKey = clean(process.env.COUPANG_SECRET_KEY);
+  let accessKey = clean(process.env.COUPANG_ACCESS_KEY);
+  let secretKey = clean(process.env.COUPANG_SECRET_KEY);
   const vendorId  = clean(process.env.COUPANG_VENDOR_ID);
   if (!accessKey || !secretKey || !vendorId) {
     throw new Error('COUPANG_ACCESS_KEY / COUPANG_SECRET_KEY / COUPANG_VENDOR_ID 환경변수가 없습니다.');
   }
-  return { accessKey, secretKey, vendorId };
+  // Access Key는 36자 UUID 형식. Access 자리에 UUID가 아니고 Secret 자리에 UUID가 있으면
+  // 두 값이 바뀌어 저장된 것이 확실하므로 맞바꿔 쓴다.
+  let swapped = false;
+  if (!UUID.test(accessKey) && UUID.test(secretKey)) {
+    [accessKey, secretKey] = [secretKey, accessKey];
+    swapped = true;
+  }
+  return { accessKey, secretKey, vendorId, swapped };
 }
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // 401일 때 원인 짐작용 힌트 — 키 값은 절대 넣지 않고 길이·형식만 알려준다.
 // 쿠팡 Access Key는 보통 36자(하이픈 포함 UUID), Secret Key는 40자 내외 영숫자.
 function keyHint() {
   try {
-    const { accessKey, secretKey, vendorId } = keys();
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accessKey);
-    const swapped = !uuid && /^[0-9a-f]{8}-/i.test(secretKey);
+    const { accessKey, secretKey, vendorId, swapped } = keys();
+    const uuid = UUID.test(accessKey);
     return `Access Key ${accessKey.length}자${uuid ? '·형식 정상' : '·형식 다름'}, Secret Key ${secretKey.length}자, 업체코드 ${/^A\d+$/.test(vendorId) ? '형식 정상' : '형식 확인 필요'}` +
-      (swapped ? ' — Access/Secret이 서로 바뀐 것 같아요' : uuid ? ' — 형식은 맞으니 키 활성화(최대 24시간) 대기일 수 있어요' : '');
+      (swapped ? ', Access/Secret 바뀜 → 자동으로 맞바꿔 사용함' : '') +
+      (uuid ? ' — 형식은 맞으니 키 활성화(최대 24시간) 대기 또는 업체코드·키 계정 불일치일 수 있어요' : '');
   } catch (_) { return '키 확인 불가'; }
 }
 

@@ -213,6 +213,54 @@ async function syncOrders({ days = 1 } = {}) {
   return { synced, errors, message };
 }
 
+// ── 과거 주문 가져오기 ──
+// 발주서 목록은 한 번에 최대 31일까지 조회되므로 from(KST 'YYYY-MM-DD')부터 31일 구간씩 앞으로,
+// 구간마다 모든 상태를 훑어 저장한다. 약 35초 안에서 처리하고 다음 시작일(next)을 돌려준다.
+const BACKFILL_BUDGET_MS = 35000;
+async function backfillOrders({ from } = {}) {
+  const started = Date.now();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(from || ''))) throw new Error('시작 날짜(YYYY-MM-DD)가 필요합니다.');
+  const channelId = await getChannelId('coupang');
+  const DAY = 86400e3;
+  const day = ms => new Date(ms).toISOString().slice(0, 10);          // 구간 계산은 날짜 문자열만 쓰므로 UTC 자정 기준으로 충분
+  const today = kstDay(0);
+  let cur = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${today}T00:00:00Z`);
+  let synced = 0, errors = 0, windows = 0, errMsg = '';
+  try {
+    while (cur <= end && Date.now() - started < BACKFILL_BUDGET_MS) {
+      const winTo = Math.min(cur + 30 * DAY, end);                     // 시작일 포함 31일
+      for (const st of STATUSES) {
+        const sheets = await listOrdersheets(st, day(cur), day(winTo), started + BACKFILL_BUDGET_MS + 15000);
+        for (const s of sheets) {
+          for (const row of mapCoupangSheet(channelId, s)) {
+            try {
+              const saved = await upsertOrder(row.order);
+              await replaceItems(saved.id, row.item);
+              await syncShipment(saved.id, s, row.order.status);
+              synced++;
+            } catch (e) {
+              errors++;
+              errMsg = errMsg || `저장 실패: ${e.message}`;
+            }
+          }
+        }
+      }
+      cur = winTo + DAY;
+      windows++;
+    }
+  } catch (e) {
+    errMsg = `API 오류: ${errText(e)}`;
+    console.error('[COUPANG-BACKFILL]', errMsg);
+    errors++;
+  }
+  const next = cur <= end ? day(cur) : null;
+  const message = `쿠팡 과거 주문 ${from}~${day(Math.min(cur - DAY, end))} 조회(${windows}구간) · 저장 ${synced}건` +
+    (next ? ` · 다음 시작 ${next}` : ' · 완료') + (errMsg ? ` · ${errMsg}` : '');
+  await logSync('coupang', { synced, errors, message });
+  return { synced, errors, next, done: !next, error: errMsg || null, message };
+}
+
 const STATUS_LABEL = {
   ACCEPT: '결제완료', INSTRUCT: '상품준비중', DEPARTURE: '배송지시', DELIVERING: '배송중',
   FINAL_DELIVERY: '배송완료', NONE_TRACKING: '업체직송'
@@ -364,4 +412,4 @@ async function registerShipment({ channelOrderNo, channelItemNo, trackingNo, car
   return r;
 }
 
-module.exports = { syncOrders, registerShipment, acknowledge, mapCoupangSheet, mapCoupangStatus, signedDate, parseBig, bigBody };
+module.exports = { syncOrders, backfillOrders, registerShipment, acknowledge, mapCoupangSheet, mapCoupangStatus, signedDate, parseBig, bigBody };

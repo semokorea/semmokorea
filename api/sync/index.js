@@ -26,10 +26,11 @@ module.exports = async (req, res) => {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  // 과거 주문 가져오기 (네이버): body { backfill_from: 'YYYY-MM-DD' } → { next, done, ... }
+  // 과거 주문 가져오기: body { backfill_from: 'YYYY-MM-DD', channel: 'naver'|'coupang' (기본 naver) } → { next, done, ... }
   if (req.body?.backfill_from) {
     try {
-      return res.status(200).json(await naver.backfillOrders({ from: String(req.body.backfill_from) }));
+      const mod = req.body.channel === 'coupang' ? coupang : naver;
+      return res.status(200).json(await mod.backfillOrders({ from: String(req.body.backfill_from) }));
     } catch (e) {
       return res.status(400).json({ error: e.message });
     }

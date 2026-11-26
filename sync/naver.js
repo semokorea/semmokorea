@@ -116,7 +116,10 @@ async function syncOrders({ days = 1 } = {}) {
   const end = Date.now() - 5000;                              // 문서 권장: 현재보다 5초 이전
 
   let synced = 0, errors = 0, changed = 0, doneDays = 0, stopped = false, errMsg = '';
+  let refreshed = 0, statusChanged = 0;
+  const seen = new Set();          // 이번에 이미 저장한 상품주문번호
   try {
+    // ① 최근 N일 안에 바뀐 주문 수집
     for (let i = 0; i < nDays; i++) {
       if (Date.now() - started > TIME_BUDGET_MS) { stopped = true; break; }
       const to = new Date(end - i * DAY);
@@ -126,18 +129,31 @@ async function syncOrders({ days = 1 } = {}) {
       const details = ids.length ? await fetchDetails(ids) : [];
       for (const d of details) {
         if (Date.now() - started > TIME_BUDGET_MS + 10000) { stopped = true; break; }
-        try {
-          const row = await upsertOrder(mapNaverOrder(channelId, d));
-          await replaceItems(row.id, d);
-          synced++;
-        } catch (e) {
-          console.error('[NAVER] 저장 실패:', e.message);
-          errors++;
-          errMsg = errMsg || `저장 실패: ${e.message}`;
-        }
+        const r = await saveDetail(channelId, d);
+        if (r === true) { synced++; seen.add(String(d.productOrder?.productOrderId)); }
+        else { errors++; errMsg = errMsg || r; }
       }
       if (stopped) break;
       doneDays++;
+    }
+
+    // ② 진행 중인 주문 상태 새로고침
+    //    ①은 "그 기간 안에 바뀐 주문"만 잡기 때문에, 예전에 발송된 주문이 나중에
+    //    배송완료·구매확정으로 바뀐 것을 놓칠 수 있다. 그래서 아직 끝나지 않은 주문
+    //    (신규·배송준비중·배송중)은 수집할 때마다 상세를 다시 조회해 상태를 맞춘다.
+    if (!stopped && Date.now() - started < TIME_BUDGET_MS) {
+      const open = await openOrders(channelId);
+      const ids = [...open.keys()].filter(id => !seen.has(id));
+      const details = ids.length ? await fetchDetails(ids) : [];
+      for (const d of details) {
+        if (Date.now() - started > TIME_BUDGET_MS + 10000) { stopped = true; break; }
+        const id = String(d.productOrder?.productOrderId);
+        const r = await saveDetail(channelId, d);
+        if (r === true) {
+          refreshed++;
+          if (open.get(id) !== mapNaverStatus(d.productOrder?.productOrderStatus)) statusChanged++;
+        } else { errors++; errMsg = errMsg || r; }
+      }
     }
   } catch (e) {
     errMsg = `API 오류: ${errText(e)}`;
@@ -146,11 +162,73 @@ async function syncOrders({ days = 1 } = {}) {
   }
 
   let message = `${doneDays}/${nDays}일 조회 · 변경 ${changed}건 · 저장 ${synced}건`;
+  if (refreshed) message += ` · 진행중 주문 ${refreshed}건 상태 확인 (${statusChanged}건 바뀜)`;
   if (stopped) message += ` (시간 제한으로 ${doneDays}일까지만 처리 — 다시 누르면 이어서 확인)`;
   if (errMsg) message += ` · ${errMsg}`;
 
-  await logSync('naver', { synced, errors, message });
-  return { synced, errors, message };
+  await logSync('naver', { synced: synced + refreshed, errors, message });
+  return { synced: synced + refreshed, errors, message };
+}
+
+// 진행 중(아직 배송완료·취소·반품이 아닌) 주문: 상품주문번호 → 현재 상태
+const OPEN_STATUSES = ['new', 'confirmed', 'preparing', 'ready', 'shipped'];
+const OPEN_LOOKBACK_DAYS = 60;
+async function openOrders(channelId) {
+  const since = new Date(Date.now() + 9 * 3600 * 1000 - OPEN_LOOKBACK_DAYS * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('orders')
+    .select('channel_item_no, status')
+    .eq('channel_id', channelId)
+    .in('status', OPEN_STATUSES)
+    .gte('order_dt', since)
+    .limit(3000);
+  if (error) throw new Error(error.message);
+  const map = new Map();
+  for (const o of data || []) if (o.channel_item_no) map.set(String(o.channel_item_no), o.status);
+  return map;
+}
+
+// 상세 1건 저장: 주문 + 품목 + 배송(송장·발송일·도착일). 성공하면 true, 실패하면 오류 문구
+async function saveDetail(channelId, d) {
+  try {
+    const row = await upsertOrder(mapNaverOrder(channelId, d));
+    await replaceItems(row.id, d);
+    await syncShipment(row.id, d);
+    return true;
+  } catch (e) {
+    console.error('[NAVER] 저장 실패:', e.message);
+    return `저장 실패: ${e.message}`;
+  }
+}
+
+// 네이버 배송 정보(d.delivery) → shipments (주문당 1건, 있으면 갱신)
+const CARRIER_NAMES = {
+  CJGLS: 'CJ대한통운', HYUNDAI: '롯데택배', HANJIN: '한진택배', EPOST: '우체국택배', KGB: '로젠택배',
+  KDEXP: '경동택배', DAESIN: '대신택배', CHUNIL: '천일택배', ILYANG: '일양로지스', HDEXP: '합동택배',
+  CVSNET: 'GS편의점택배', CUPOST: 'CU편의점택배'
+};
+async function syncShipment(orderId, d) {
+  const dl = d.delivery || {};
+  if (!dl.sendDate && !dl.trackingNumber) return;          // 아직 발송 전
+  const st = d.productOrder?.productOrderStatus;
+  const delivered = Boolean(dl.deliveredDate) || ['DELIVERED', 'PURCHASE_DECIDED', 'EXCHANGED'].includes(st);
+  const fields = { status: delivered ? 'delivered' : 'shipped' };
+  if (dl.sendDate || dl.pickupDate) fields.shipped_dt = dl.sendDate || dl.pickupDate;
+  if (dl.deliveredDate) fields.delivered_dt = dl.deliveredDate;
+  if (dl.trackingNumber) fields.tracking_no = String(dl.trackingNumber);
+  const carrier = dl.deliveryCompany
+    ? (CARRIER_NAMES[dl.deliveryCompany] || dl.deliveryCompany)
+    : (dl.deliveryMethod === 'VISIT_RECEIPT' ? '방문수령' : dl.deliveryMethod === 'DIRECT_DELIVERY' ? '직접전달' : null);
+  if (carrier) fields.carrier = carrier;
+
+  const { data: exist, error: selErr } = await supabase
+    .from('shipments').select('id').eq('order_id', orderId)
+    .order('created_at', { ascending: false }).limit(1);
+  if (selErr) throw new Error(selErr.message);
+  const { error } = exist?.length
+    ? await supabase.from('shipments').update(fields).eq('id', exist[0].id)
+    : await supabase.from('shipments').insert({ order_id: orderId, ...fields });
+  if (error) throw new Error(error.message);
 }
 
 // 주문 1건(상품주문 1개)의 품목을 덮어쓴다

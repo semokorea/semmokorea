@@ -265,6 +265,7 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
 .sum-tbl a.cnt:hover { background: var(--green-l); }
 .sum-tbl a.cnt.red { color: var(--red); }
 .sum-tbl a.cnt.amber { color: #b45309; }
+.sum-tbl a.cnt.blue { color: #1d4ed8; }
 .sum-tbl .amt { display: block; font-size: 11px; color: var(--text2); margin-top: 1px; }
 .sum-tbl tr.total td { background: #fafafa; font-weight: 600; border-top: 1px solid var(--border); }
 .sum-tbl tr:hover td { background: transparent; }
@@ -513,7 +514,9 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
                 <th class="num">주문</th>
                 <th class="num">취소</th>
                 <th class="num">반품</th>
-                <th class="num">발송대기</th>
+                <th class="num">배송준비중</th>
+                <th class="num">배송중</th>
+                <th class="num">배송완료</th>
                 <th class="num">순매출</th>
               </tr></thead>
               <tbody id="sum-tbody"></tbody>
@@ -1442,10 +1445,10 @@ const DATA = { shop: null, stock: null, sales: null, oem: null, qna: null };
 const CH_CLS = { naver: 'ch-n', coupang: 'ch-c', ably: 'ch-a', zigzag: 'ch-z' };
 const ORDER_STATUS = {
   new:       ['신규', 'b-new'],
-  confirmed: ['발송대기', 'b-wait'],
-  preparing: ['발송대기', 'b-wait'],
-  ready:     ['발송대기', 'b-wait'],
-  shipped:   ['발송완료', 'b-ship'],
+  confirmed: ['배송준비중', 'b-wait'],
+  preparing: ['배송준비중', 'b-wait'],
+  ready:     ['배송준비중', 'b-wait'],
+  shipped:   ['배송중', 'b-ship'],
   delivered: ['배송완료', 'b-done'],
   cancelled: ['취소', 'b-done'],
   returned:  ['반품', 'b-done']
@@ -1536,19 +1539,21 @@ const STORES = [
   { code: 'ably',    name: '에이블리' },
   { code: 'zigzag',  name: '지그재그' }
 ];
-// 집계 구분: all=전체 주문, cancel=취소, return=반품, pending=발송대기
+// 집계 구분: all=전체 주문, cancel=취소, return=반품, pending=배송준비중, shipping=배송중, delivered=배송완료
 const SUM_KIND = {
   all:     { label: '주문',     test: () => true },
   cancel:  { label: '취소',     test: o => o.status === 'cancelled' },
   return:  { label: '반품',     test: o => o.status === 'returned' },
-  pending: { label: '발송대기', test: o => PENDING_STATUS.includes(o.status) }
+  pending:   { label: '배송준비중', test: o => PENDING_STATUS.includes(o.status) },
+  shipping:  { label: '배송중',     test: o => o.status === 'shipped' },
+  delivered: { label: '배송완료',   test: o => o.status === 'delivered' }
 };
 let summaryDays = 7;
 
 async function setSummaryDays(d) {
   summaryDays = d;
   document.querySelectorAll('#sum-periods .fpill').forEach(b => b.classList.toggle('on', Number(b.dataset.d) === d));
-  document.getElementById('sum-tbody').innerHTML = `<tr><td colspan="6">${emptyMsg('불러오는 중…')}</td></tr>`;
+  document.getElementById('sum-tbody').innerHTML = `<tr><td colspan="8">${emptyMsg('불러오는 중…')}</td></tr>`;
   const r = await loadData('shop');
   if (r) renderShop(DATA.shop);
 }
@@ -1567,7 +1572,7 @@ function renderOrders() {
   const cell = (store, kind, color = '') => {
     const list = ordersOf(store, kind);
     const n = list.length;
-    const amt = kind === 'pending' ? '' : `<span class="amt">${won(amountOf(list))}원</span>`;
+    const amt = ['pending', 'shipping', 'delivered'].includes(kind) ? '' : `<span class="amt">${won(amountOf(list))}원</span>`;
     const num = n
       ? `<a class="cnt ${color}" onclick="openOrderList('${store}','${kind}')" title="눌러서 목록 보기">${won(n)}</a>`
       : `<span class="cnt" style="color:var(--text3);font-weight:500">0</span>`;
@@ -1579,9 +1584,17 @@ function renderOrders() {
   };
   const row = (store, name, total = false) =>
     `<tr class="${total ? 'total' : ''}"><td>${total ? '<b>합계</b>' : chTag({ code: store, name })}</td>` +
-    cell(store, 'all') + cell(store, 'cancel', 'red') + cell(store, 'return', 'red') + cell(store, 'pending', 'amber') + net(store) + '</tr>';
+    cell(store, 'all') + cell(store, 'cancel', 'red') + cell(store, 'return', 'red') +
+    cell(store, 'pending', 'amber') + cell(store, 'shipping', 'blue') + cell(store, 'delivered') + net(store) + '</tr>';
 
   tbody.innerHTML = STORES.map(s => row(s.code, s.name)).join('') + row('all', '합계', true);
+}
+
+// 송장 정보 (택배사 · 운송장번호) — 배송중/배송완료 주문 목록에 작게 표시
+function shipInfo(o) {
+  const s = (o.shipments || []).find(x => x.tracking_no || x.carrier);
+  if (!s || !['shipped', 'delivered'].includes(o.status)) return '';
+  return `<div style="font-size:10px;color:var(--text2);margin-top:2px;white-space:nowrap">${esc(s.carrier || '')} ${esc(s.tracking_no || '')}</div>`;
 }
 
 function openOrderList(store, kind) {
@@ -1602,7 +1615,7 @@ function openOrderList(store, kind) {
       <td title="${esc(itemsText(o.order_items))}">${esc(itemsText(o.order_items))}</td>
       <td>${qtySum(o.order_items)}</td>
       <td style="text-align:right">${won(o.total_amount)}</td>
-      <td><span class="badge ${cls}">${esc(lbl)}</span></td>
+      <td><span class="badge ${cls}">${esc(lbl)}</span>${shipInfo(o)}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="8">${emptyMsg('해당 주문이 없습니다')}</td></tr>`;
   openModal('m-orders');

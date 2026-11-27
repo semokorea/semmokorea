@@ -14,17 +14,21 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // 주문 수집과 네이버 광고 성과(최근 3일 — 늦게 잡히는 전환 반영)를 동시에. 광고 키가 없으면 광고는 건너뜀
+    // 한 번에 전부 동시에: 주문(네이버·쿠팡) / 네이버 광고 성과·비즈머니(최근 3일 — 늦게 잡히는 전환 반영) / 미답변 상품 문의(최근 14일)
+    // 오전 8시 실행으로 밤사이 바뀐 것까지 모두 반영된다. 광고 키가 없으면 광고는 건너뜀
     const naverads = require('../../sync/naverads');
-    const [result, ads] = await Promise.all([
+    const naver = require('../../sync/naver');
+    const [result, ads, qna] = await Promise.all([
       runAllSync(),
-      naverads.syncAds({ days: 3 }).catch(e => ({ errors: 1, message: e.message }))
+      naverads.syncAds({ days: 3 }).catch(e => ({ errors: 1, message: e.message })),
+      naver.syncQnas({ days: 14 }).catch(e => ({ errors: 1, message: e.message }))
     ]);
     return res.status(200).json({
       success: true,
       synced:  result.totalSynced,
       errors:  result.totalErrors,
       ads:     ads.message,
+      qna:     qna.message,
       time:    new Date().toISOString()
     });
   } catch (err) {

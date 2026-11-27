@@ -340,6 +340,14 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
 .ad-tbl { min-width: 720px; font-size: 12px; } .ad-tbl td:nth-child(2) { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ad-diag-wrap { margin-top: 10px; display: grid; gap: 10px; }
 .ad-sub { font-size: 10px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; }
+/* 광고 카드(휴대폰) */
+.adc { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-top: 6px; background: var(--white); }
+.adc-h { display: flex; justify-content: space-between; gap: 6px; align-items: flex-start; }
+.adc-t { font-size: 12px; font-weight: 600; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.adc-tp { font-size: 10px; color: var(--text2); background: #f3f4f6; border-radius: 4px; padding: 1px 5px; white-space: nowrap; flex: none; }
+.adc-g { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; margin-top: 6px; }
+.adc-g div { display: flex; flex-direction: column; } .adc-g span { font-size: 10px; color: var(--text3); } .adc-g b { font-size: 13px; }
+.ad-diag .mob-only .adc { margin-top: 6px; }
 .ad-diag { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
 .ad-diag-h { font-size: 13px; font-weight: 700; } .ad-diag-h span { font-size: 11px; color: var(--text3); font-weight: 500; }
 .ad-diag-d { font-size: 11px; color: var(--text2); margin: 2px 0 6px; } .ad-none { font-size: 11px; color: var(--text3); padding: 4px 0; }
@@ -1901,8 +1909,17 @@ function renderAds(d) {
   const head = first => `<thead><tr><th>${first}</th><th>이름</th><th class="num">광고비</th><th class="num">클릭</th><th class="num">클릭률</th><th class="num">클릭당</th><th class="num">전환</th><th class="num">전환매출</th><th class="num">ROAS</th></tr></thead>`;
   const unitRow = u => `<tr><td>${esc(u.type)}</td><td title="${esc(u.name)} — ${esc(u.campaign)}">${esc(u.name)}<div class="ad-sub">${esc(u.group || u.campaign)}${u.bid_amt ? ` · 입찰 ${won(u.bid_amt)}원` : ""}</div></td><td class="num">${won(Math.round(u.cost))}</td><td class="num">${won(u.clk)}</td><td class="num">${pct(u.ctr)}</td><td class="num">${won(Math.round(u.cpc))}</td><td class="num">${(+u.conv).toFixed(0)}</td><td class="num">${won(Math.round(u.conv_amt))}</td><td class="num">${roasTxt(u.roas)}</td></tr>`;
   const dg = d.diagnosis || {};
+  // 휴대폰용 카드: 이름 + 보조줄 + 지표 6칸(3×2) — 가로로 밀리지 않게
+  const card = (r, title, sub) => `<div class="adc"><div class="adc-h"><span class="adc-t">${esc(title)}</span><span class="adc-tp">${esc(r.type || '')}</span></div>` +
+    (sub ? `<div class="ad-sub">${sub}</div>` : '') +
+    `<div class="adc-g"><div><span>광고비</span><b>${won(Math.round(r.cost))}</b></div><div><span>클릭</span><b>${won(r.clk)}</b></div><div><span>클릭률</span><b>${pct(r.ctr)}</b></div>` +
+    `<div><span>클릭당</span><b>${won(Math.round(r.cpc))}</b></div><div><span>전환</span><b>${(+r.conv).toFixed(0)}</b></div><div><span>ROAS</span><b>${roasTxt(r.roas)}</b></div></div></div>`;
+  const unitCard = u => card(u, u.name, `${esc(u.group || u.campaign)}${u.bid_amt ? ` · 입찰 ${won(u.bid_amt)}원` : ''}`);
   const diag = (title, desc, list) => `<div class="ad-diag"><div class="ad-diag-h">${title} <span>${list.length}개</span></div><div class="ad-diag-d">${desc}</div>` +
-    (list.length ? `<div class="dash-ywrap"><table class="tbl sum-tbl ad-tbl">${head('종류')}<tbody>${list.map(unitRow).join('')}</tbody></table></div>` : `<div class="ad-none">해당 없음</div>`) + '</div>';
+    (list.length
+      ? `<div class="dash-ywrap pc-only"><table class="tbl sum-tbl ad-tbl">${head('종류')}<tbody>${list.map(unitRow).join('')}</tbody></table></div>` +
+        `<div class="mob-only">${list.map(unitCard).join('')}</div>`
+      : `<div class="ad-none">해당 없음</div>`) + '</div>';
 
   body.innerHTML =
     (bm ? `<div class="ad-bm${bmWarn ? ' warn' : ''}">비즈머니 잔액 <b>${won(Math.round(bm.balance || 0))}원</b>` +
@@ -1914,7 +1931,8 @@ function renderAds(d) {
       tile('스토어 매출 대비', roasTxt(d.store_roas), `네이버 매출 ${dashMoney(d.store_sales)} ÷ 광고비`) +
     `</div>` +
     `<div id="ads-chart" class="dash-chart"></div>` +
-    `<div class="dash-ywrap"><table class="tbl sum-tbl ad-tbl">${head('유형')}<tbody>${(d.campaigns || []).map(row).join('') || `<tr><td colspan="9">${emptyMsg('기간 내 성과 없음')}</td></tr>`}</tbody></table></div>` +
+    `<div class="dash-ywrap pc-only"><table class="tbl sum-tbl ad-tbl">${head('유형')}<tbody>${(d.campaigns || []).map(row).join('') || `<tr><td colspan="9">${emptyMsg('기간 내 성과 없음')}</td></tr>`}</tbody></table></div>` +
+    `<div class="mob-only">${(d.campaigns || []).map(c => card(c, c.name, c.daily_budget ? `하루 예산 ${won(c.daily_budget)}원` : '')).join('') || emptyMsg('기간 내 성과 없음')}</div>` +
     `<div class="ad-diag-wrap">` +
       diag('⚠️ 돈만 쓰고 전환 없음', `광고비 5,000원 이상 썼는데 구매가 0건인 키워드·상품 — 입찰가를 낮추거나 끄는 걸 검토하세요`, dg.waste || []) +
       diag('👀 클릭률 낮음', `노출 1,000회 이상인데 클릭률 0.3% 미만 — 키워드가 상품과 안 맞거나 소재(제목·이미지)를 바꿔볼 만해요`, dg.low_ctr || []) +

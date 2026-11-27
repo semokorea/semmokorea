@@ -103,21 +103,39 @@ async function syncStructure() {
   return { campaigns, units };
 }
 
-// ── 하루치 성과: ids를 50개씩 /stats 조회 ──
+// 구조(캠페인·키워드·소재)는 30분 안에 받은 게 있으면 DB 것을 그대로 쓴다 — 여러 번 이어서 가져올 때 시간 절약
+async function loadOrSyncStructure() {
+  const { data: last } = await supabase.from('ad_campaigns').select('updated_at').order('updated_at', { ascending: false }).limit(1);
+  const fresh = last?.[0] && Date.now() - Date.parse(String(last[0].updated_at).replace(' ', 'T') + 'Z') < 30 * 60e3;
+  if (!fresh) return syncStructure();
+  const [c, u] = await Promise.all([
+    supabase.from('ad_campaigns').select('id'),
+    supabase.from('ad_units').select('id, unit_type, campaign_id').limit(20000)
+  ]);
+  if (c.error || u.error) return syncStructure();
+  return { campaigns: (c.data || []).map(x => ({ nccCampaignId: x.id })), units: u.data || [] };
+}
+
+// ── 하루치 성과: /stats 조회. 네이버 규칙 "한 번에 보내는 ID는 모두 같은 종류" → 종류별로 나눠 50개씩 ──
 let convAmtSupported = true;
-async function statsForDay(ids, day) {
+async function statsForDay(entities, day) {
   const out = [];
-  for (let i = 0; i < ids.length; i += 50) {
-    const batch = ids.slice(i, i + 50);
-    let data;
-    try {
-      data = await call('get', '/stats', { ids: batch, fields: convAmtSupported ? FIELDS : FIELDS.filter(f => f !== 'convAmt'), timeRange: { since: day, until: day } });
-    } catch (e) {
-      // 전환매출(convAmt) 필드를 받지 않는 계정이면 빼고 다시
-      if (convAmtSupported && e.response?.status === 400) { convAmtSupported = false; i -= 50; continue; }
-      throw e;
+  const groups = {};
+  for (const e of entities) (groups[e.type] ||= []).push(e.id);
+  for (const ids of Object.values(groups)) {
+    for (let i = 0; i < ids.length; i += 50) {
+      const batch = ids.slice(i, i + 50);
+      let data;
+      try {
+        data = await call('get', '/stats', { ids: batch, fields: convAmtSupported ? FIELDS : FIELDS.filter(f => f !== 'convAmt'), timeRange: { since: day, until: day } });
+      } catch (e) {
+        // 전환매출(convAmt) 필드를 받지 않는 계정이면 빼고 다시 (필드 관련 오류일 때만)
+        const msg = JSON.stringify(e.response?.data || '');
+        if (convAmtSupported && e.response?.status === 400 && /field|convAmt|필드/i.test(msg)) { convAmtSupported = false; i -= 50; continue; }
+        throw e;
+      }
+      out.push(...(data?.data || []));
     }
-    out.push(...(data?.data || []));
   }
   return out;
 }
@@ -130,14 +148,14 @@ async function syncAds({ days = 3, from } = {}) {
   let cur = from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : kstDay(-(Math.max(1, Math.min(90, Number(days) || 3)) - 1));
   let synced = 0, errors = 0, errMsg = '', daysDone = 0;
   try {
-    const { campaigns, units } = await syncStructure();
+    const { campaigns, units } = await loadOrSyncStructure();
     const entity = [
       ...campaigns.map(c => ({ id: c.nccCampaignId, type: 'campaign', campaign_id: c.nccCampaignId })),
       ...units.filter(u => u.unit_type !== 'adgroup').map(u => ({ id: u.id, type: u.unit_type, campaign_id: u.campaign_id }))
     ];
     const byId = Object.fromEntries(entity.map(e => [e.id, e]));
     while (cur <= today && Date.now() - started < TIME_BUDGET_MS) {
-      const rows = (await statsForDay(entity.map(e => e.id), cur))
+      const rows = (await statsForDay(entity, cur))
         .map(s => {
           const e = byId[s.id]; if (!e) return null;
           const r = { stat_date: cur, entity_type: e.type, entity_id: e.id, campaign_id: e.campaign_id,

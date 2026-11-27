@@ -1,6 +1,6 @@
 // api/data/index.js
-// GET  /api/data?type=shop|stock|sales|oem|qna|rocket|dashboard — 어드민 화면용 조회 API
-// POST /api/data (action=collect_qna|answer_qna|rocket_po_save) — Q&A 수집/답변, 로켓 발주서 저장 (Vercel 함수 개수 제한 때문에 여기에 묶음)
+// GET  /api/data?type=shop|stock|sales|oem|qna|rocket|dashboard|ads — 어드민 화면용 조회 API
+// POST /api/data (action=collect_qna|answer_qna|rocket_po_save|ads_sync) — Q&A 수집/답변, 로켓 발주서 저장, 네이버 광고 수집 (Vercel 함수 개수 제한 때문에 여기에 묶음)
 const { supabase } = require('../../utils/supabase');
 const { verifyRequest } = require('../../utils/auth');
 
@@ -456,12 +456,83 @@ async function getDashboard({ year } = {}) {
   };
 }
 
-const HANDLERS = { shop: getShop, stock: getStock, sales: getSales, oem: getOem, qna: getQna, rocket: getRocket, dashboard: getDashboard };
+// ── 네이버 광고(파워링크·쇼핑검색): 기간 성과 + 진단 ──
+// days: 최근 며칠 (7/30/90, 기본 30). 광고비(cost)는 네이버 광고 기준 금액
+const AD_TYPE = { WEB_SITE: '파워링크', SHOPPING: '쇼핑검색' };
+async function getAds({ days } = {}) {
+  const nDays = Math.max(1, Math.min(90, parseInt(days, 10) || 30));
+  const since = kstDate(-(nDays - 1)), today = kstDate();
+  const [camps, units, stats, meta, orders] = await Promise.all([
+    supabase.from('ad_campaigns').select('id, name, campaign_tp, status, daily_budget'),
+    supabase.from('ad_units').select('id, unit_type, name, campaign_id, bid_amt, status').neq('unit_type', 'adgroup').limit(20000),
+    supabase.from('ad_stats_daily').select('stat_date, entity_type, entity_id, campaign_id, imp_cnt, clk_cnt, cost, conv_cnt, conv_amt, avg_rnk')
+      .gte('stat_date', since).lte('stat_date', today).limit(100000),
+    supabase.from('ad_meta').select('key, value, updated_at'),
+    supabase.from('orders').select('total_amount, status, order_dt, channels!inner ( code )').eq('channels.code', 'naver').gte('order_dt', since).limit(20000)
+  ]);
+  [camps, units, stats, meta, orders].forEach(r => check(r.error));
+
+  const zero = () => ({ imp: 0, clk: 0, cost: 0, conv: 0, conv_amt: 0 });
+  const addTo = (t, s) => { t.imp += +s.imp_cnt; t.clk += +s.clk_cnt; t.cost += +s.cost; t.conv += +s.conv_cnt; t.conv_amt += +s.conv_amt; return t; };
+  const campRows = (stats.data || []).filter(s => s.entity_type === 'campaign');
+  const unitRows = (stats.data || []).filter(s => s.entity_type !== 'campaign');
+  const campInfo = Object.fromEntries((camps.data || []).map(c => [c.id, c]));
+  const unitInfo = Object.fromEntries((units.data || []).map(u => [u.id, u]));
+
+  // 전체 / 유형별 / 캠페인별 / 일별
+  const total = zero(), byType = {}, byCamp = {}, daily = {};
+  for (const s of campRows) {
+    const tp = AD_TYPE[campInfo[s.campaign_id]?.campaign_tp] || campInfo[s.campaign_id]?.campaign_tp || '기타';
+    addTo(total, s); addTo(byType[tp] ||= zero(), s); addTo(byCamp[s.campaign_id] ||= zero(), s); addTo(daily[s.stat_date] ||= zero(), s);
+  }
+  const rate = t => ({ ...t, ctr: t.imp ? t.clk / t.imp : 0, cpc: t.clk ? t.cost / t.clk : 0, roas: t.cost ? t.conv_amt / t.cost : 0 });
+
+  // 광고단위(키워드·소재)별 합계 → 진단
+  const byUnit = {};
+  for (const s of unitRows) addTo(byUnit[s.entity_id] ||= zero(), s);
+  const unitList = Object.entries(byUnit).map(([id, t]) => {
+    const u = unitInfo[id] || {}, c = campInfo[u.campaign_id] || {};
+    return { id, name: u.name || id, unit_type: u.unit_type, campaign: c.name || '-', type: AD_TYPE[c.campaign_tp] || c.campaign_tp || '-', bid_amt: u.bid_amt, ...rate(t) };
+  });
+  const spent = unitList.filter(u => u.cost > 0);
+  const waste = spent.filter(u => u.conv === 0 && u.cost >= 5000).sort((a, b) => b.cost - a.cost).slice(0, 15);
+  const lowCtr = unitList.filter(u => u.imp >= 1000 && u.ctr < 0.003).sort((a, b) => b.imp - a.imp).slice(0, 10);
+  const best = spent.filter(u => u.conv > 0 && u.cost >= 3000).sort((a, b) => b.roas - a.roas).slice(0, 10);
+
+  // 실제 스마트스토어 매출(취소·반품 제외)과 광고비 비교
+  const storeSales = (orders.data || []).filter(o => !['cancelled', 'returned'].includes(o.status)).reduce((s, o) => s + Number(o.total_amount || 0), 0);
+
+  // 비즈머니 잔액 → 최근 7일 평균 광고비로 며칠 버티는지
+  const bm = (meta.data || []).find(m => m.key === 'bizmoney');
+  const last7 = Object.entries(daily).filter(([d]) => d >= kstDate(-6)).reduce((s, [, t]) => s + t.cost, 0) / 7;
+  const balance = bm ? Number(bm.value?.bizmoney ?? bm.value?.bizMoney ?? 0) : null;
+
+  return {
+    period: { days: nDays, from: since, to: today },
+    total: rate(total),
+    by_type: Object.entries(byType).map(([type, t]) => ({ type, ...rate(t) })),
+    campaigns: Object.entries(byCamp).map(([id, t]) => ({ id, name: campInfo[id]?.name || id, type: AD_TYPE[campInfo[id]?.campaign_tp] || campInfo[id]?.campaign_tp || '-',
+      status: campInfo[id]?.status, daily_budget: campInfo[id]?.daily_budget, ...rate(t) })).sort((a, b) => b.cost - a.cost),
+    daily: Object.keys(daily).sort().map(d => ({ date: d, ...rate(daily[d]) })),
+    store_sales: storeSales,
+    store_roas: total.cost ? storeSales / total.cost : 0,
+    bizmoney: bm ? { balance, updated_at: bm.updated_at, days_left: last7 > 0 ? balance / last7 : null } : null,
+    diagnosis: { waste, low_ctr: lowCtr, best },
+    has_data: (camps.data || []).length > 0
+  };
+}
+
+const HANDLERS = { shop: getShop, stock: getStock, sales: getSales, oem: getOem, qna: getQna, rocket: getRocket, dashboard: getDashboard, ads: getAds };
 
 // ── POST 액션: Q&A 수집 / 답변 등록 ──
 async function postAction(req, payload) {
   const naver = require('../../sync/naver');
   const action = req.query.action || payload.action;
+
+  if (action === 'ads_sync') {
+    // 네이버 광고 성과 가져오기: { from: 'YYYY-MM-DD' } 또는 { days }. 시간 안에 다 못 하면 next를 돌려줌
+    return await require('../../sync/naverads').syncAds({ from: payload.from, days: payload.days });
+  }
 
   if (action === 'rocket_po_save') {
     return await saveRocketPos(payload.pos, req.user);
@@ -516,7 +587,7 @@ module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
       const handler = HANDLERS[req.query.type];
-      if (!handler) return res.status(400).json({ error: 'type은 shop|stock|sales|oem|qna|rocket|dashboard 중 하나' });
+      if (!handler) return res.status(400).json({ error: 'type은 shop|stock|sales|oem|qna|rocket|dashboard|ads 중 하나' });
       return res.status(200).json(await handler(req.query));
     }
     if (req.method === 'POST') {

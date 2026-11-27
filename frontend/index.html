@@ -330,6 +330,19 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
 @media (max-width: 1023px) { .dash-kpis { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 640px) { .dash-kpis { grid-template-columns: repeat(2, 1fr); } .dk-total { grid-column: 1 / -1; } .dash-todo { grid-template-columns: repeat(2, 1fr); } .mix-row { grid-template-columns: 62px 1fr 104px; } }
 #dash-years-tbl { min-width: 620px; }
+/* 네이버 광고 카드 */
+.ad-bm { font-size: 12px; padding: 8px 10px; background: #f6f8fb; border: 1px solid var(--border); border-radius: 8px; margin: 6px 0 8px; }
+.ad-bm.warn { background: #fff4f2; border-color: #f3d0d0; color: var(--red); }
+.ad-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 6px; }
+.ak { background: #fafafa; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.ak-l { font-size: 10px; color: var(--text2); } .ak-v { font-size: 17px; font-weight: 700; } .ak-s { font-size: 10px; color: var(--text2); }
+.ak.good .ak-v { color: #15803d; } .ak.bad .ak-v { color: var(--red); }
+.ad-tbl { min-width: 720px; font-size: 12px; } .ad-tbl td:nth-child(2) { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-diag-wrap { margin-top: 10px; display: grid; gap: 10px; }
+.ad-diag { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.ad-diag-h { font-size: 13px; font-weight: 700; } .ad-diag-h span { font-size: 11px; color: var(--text3); font-weight: 500; }
+.ad-diag-d { font-size: 11px; color: var(--text2); margin: 2px 0 6px; } .ad-none { font-size: 11px; color: var(--text3); padding: 4px 0; }
+@media (max-width: 640px) { .ad-kpis { grid-template-columns: repeat(2, 1fr); } }
 .dash-ywrap { overflow-x: auto; }
 
 /* 쿠팡 로켓 발주 카드 */
@@ -587,7 +600,21 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
         </div>
       </div>
 
-      <!-- 네이버 광고 데이터 자리 (연동 예정) -->
+      <!-- 네이버 광고 (파워링크·쇼핑검색) -->
+      <div class="card" id="ads-card">
+        <div class="card-head" style="flex-wrap:wrap;gap:8px">
+          <span class="card-title">네이버 광고 <span id="ads-range" style="font-weight:400;color:var(--text3);font-size:11px"></span></span>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+            <div id="ads-periods" style="display:flex;gap:4px">
+              <button class="fpill" data-d="7" onclick="setAdsDays(7)">7일</button>
+              <button class="fpill on" data-d="30" onclick="setAdsDays(30)">30일</button>
+              <button class="fpill" data-d="90" onclick="setAdsDays(90)">90일</button>
+            </div>
+            <button class="btn btn-sm" id="ads-sync-btn" onclick="runAdsSync()" style="font-size:11px;padding:3px 8px">광고 데이터 가져오기</button>
+          </div>
+        </div>
+        <div id="ads-body" style="padding:4px 12px 12px"></div>
+      </div>
     </div>
 
     <!-- ══════ 쇼핑몰 ══════ -->
@@ -1666,6 +1693,7 @@ async function loadAll() {
   if (!curUser) return; // 로그아웃됨
   renderShop(shop); renderStock(stock); renderSales(sales); renderOem(oem);
   loadDash().catch(() => {});      // 메인 대시보드
+  loadAds().catch(() => {});       // 네이버 광고
   loadRocket().catch(() => {});   // 쿠팡 로켓 발주 (따로 불러옴)
   loadSyncStatus();
   // 문의 미답변 뱃지 갱신 (가볍게 백그라운드로)
@@ -1839,9 +1867,130 @@ function renderDashChart(d) {
   });
 }
 
+// ══════════ 네이버 광고 (파워링크·쇼핑검색) ══════════
+let adsDays = 30;
+async function loadAds() {
+  try {
+    const res = await apiFetch('/data?type=ads&days=' + adsDays);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || res.status);
+    DATA.ads = body;
+  } catch (e) { DATA.ads = { _error: e.message }; }
+  if (curUser) renderAds(DATA.ads);
+}
+function setAdsDays(d) {
+  adsDays = d;
+  document.querySelectorAll('#ads-periods .fpill').forEach(b => b.classList.toggle('on', Number(b.dataset.d) === d));
+  document.getElementById('ads-body').innerHTML = emptyMsg('불러오는 중…');
+  loadAds();
+}
+const pct = v => (v * 100).toFixed(v < 0.01 ? 2 : 1) + '%';
+const roasTxt = v => v ? Math.round(v * 100) + '%' : '-';
+
+function renderAds(d) {
+  const body = document.getElementById('ads-body');
+  if (!d || d._error) { body.innerHTML = emptyMsg('불러오기 실패: ' + (d?._error || '') + ' — 처음이면 "광고 데이터 가져오기"를 눌러 주세요'); return; }
+  if (!d.has_data) { body.innerHTML = emptyMsg('아직 광고 데이터가 없어요. 오른쪽 위 "광고 데이터 가져오기"를 눌러 주세요 (처음 한 번, 최근 90일).'); return; }
+  const p = d.period, t = d.total;
+  document.getElementById('ads-range').textContent = `· ${p.from} ~ ${p.to}`;
+  const bm = d.bizmoney;
+  const bmWarn = bm && bm.days_left != null && bm.days_left < 5;
+  const tile = (l, v, s = '', tone = '') => `<div class="ak${tone ? ' ' + tone : ''}"><div class="ak-l">${l}</div><div class="ak-v">${v}</div>${s ? `<div class="ak-s">${s}</div>` : ''}</div>`;
+  const row = r => `<tr><td>${esc(r.type || '')}</td><td title="${esc(r.name || '')}">${esc(r.name || r.type)}</td><td class="num">${won(Math.round(r.cost))}</td><td class="num">${won(r.clk)}</td><td class="num">${pct(r.ctr)}</td><td class="num">${won(Math.round(r.cpc))}</td><td class="num">${(+r.conv).toFixed(0)}</td><td class="num">${won(Math.round(r.conv_amt))}</td><td class="num"><b>${roasTxt(r.roas)}</b></td></tr>`;
+  const head = first => `<thead><tr><th>${first}</th><th>이름</th><th class="num">광고비</th><th class="num">클릭</th><th class="num">클릭률</th><th class="num">클릭당</th><th class="num">전환</th><th class="num">전환매출</th><th class="num">ROAS</th></tr></thead>`;
+  const unitRow = u => `<tr><td>${esc(u.type)}</td><td title="${esc(u.campaign)}">${esc(u.name)}</td><td class="num">${won(Math.round(u.cost))}</td><td class="num">${won(u.clk)}</td><td class="num">${pct(u.ctr)}</td><td class="num">${won(Math.round(u.cpc))}</td><td class="num">${(+u.conv).toFixed(0)}</td><td class="num">${won(Math.round(u.conv_amt))}</td><td class="num">${roasTxt(u.roas)}</td></tr>`;
+  const dg = d.diagnosis || {};
+  const diag = (title, desc, list) => `<div class="ad-diag"><div class="ad-diag-h">${title} <span>${list.length}개</span></div><div class="ad-diag-d">${desc}</div>` +
+    (list.length ? `<div class="dash-ywrap"><table class="tbl sum-tbl ad-tbl">${head('종류')}<tbody>${list.map(unitRow).join('')}</tbody></table></div>` : `<div class="ad-none">해당 없음</div>`) + '</div>';
+
+  body.innerHTML =
+    (bm ? `<div class="ad-bm${bmWarn ? ' warn' : ''}">비즈머니 잔액 <b>${won(Math.round(bm.balance || 0))}원</b>` +
+      (bm.days_left != null ? ` · 최근 7일 평균이면 약 <b>${Math.floor(bm.days_left)}일</b> 버틸 수 있어요${bmWarn ? ' — 충전이 필요해요' : ''}` : '') + '</div>' : '') +
+    `<div class="ad-kpis">` +
+      tile('광고비', dashMoney(t.cost), `클릭 ${won(t.clk)} · 클릭당 ${won(Math.round(t.cpc))}원`) +
+      tile('광고 전환매출', dashMoney(t.conv_amt), `전환 ${(+t.conv).toFixed(0)}건`) +
+      tile('광고 ROAS', roasTxt(t.roas), '전환매출 ÷ 광고비', t.roas >= 3 ? 'good' : t.roas && t.roas < 1 ? 'bad' : '') +
+      tile('스토어 매출 대비', roasTxt(d.store_roas), `네이버 매출 ${dashMoney(d.store_sales)} ÷ 광고비`) +
+    `</div>` +
+    `<div id="ads-chart" class="dash-chart"></div>` +
+    `<div class="dash-ywrap"><table class="tbl sum-tbl ad-tbl">${head('유형')}<tbody>${(d.campaigns || []).map(row).join('') || `<tr><td colspan="9">${emptyMsg('기간 내 성과 없음')}</td></tr>`}</tbody></table></div>` +
+    `<div class="ad-diag-wrap">` +
+      diag('⚠️ 돈만 쓰고 전환 없음', `광고비 5,000원 이상 썼는데 구매가 0건인 키워드·상품 — 입찰가를 낮추거나 끄는 걸 검토하세요`, dg.waste || []) +
+      diag('👀 클릭률 낮음', `노출 1,000회 이상인데 클릭률 0.3% 미만 — 키워드가 상품과 안 맞거나 소재(제목·이미지)를 바꿔볼 만해요`, dg.low_ctr || []) +
+      diag('👍 효율 좋음', `전환이 있고 ROAS가 높은 순 — 예산·입찰을 늘려볼 후보예요`, dg.best || []) +
+    `</div>`;
+  renderAdsChart(d);
+}
+
+// 일별 광고비 막대 (한 가지 값이라 범례 없음, 막대에 마우스/터치 → 광고비·클릭·전환매출)
+function renderAdsChart(d) {
+  const box = document.getElementById('ads-chart');
+  if (!box) return;
+  const days = d.daily || [];
+  if (!days.length) { box.innerHTML = ''; return; }
+  const W = Math.max(300, box.clientWidth || 700), H = 150, L = 46, R = 6, T = 8, B = 22;
+  const cw = (W - L - R) / days.length, bw = Math.max(2, Math.min(18, cw * 0.7));
+  const max = Math.max(1, ...days.map(x => x.cost));
+  const raw = max / 3, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(k => k * mag).find(s => s >= raw), top = Math.ceil(max / step) * step;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="일별 광고비">`;
+  for (let g = 0; g <= top + 1e-9; g += step) svg += `<line x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}" class="dc-grid${g === 0 ? ' base' : ''}"/><text x="${L - 6}" y="${y(g) + 3.5}" class="dc-ytick">${g ? dashMoney(g) : '0'}</text>`;
+  const every = Math.ceil(days.length / 8);
+  days.forEach((x, i) => {
+    const bx = L + cw * i + (cw - bw) / 2, h = Math.max(0, y(0) - y(x.cost)), r = Math.min(4, h, bw / 2), yt = y(0) - h;
+    if (h > 0) svg += `<path fill="var(--s-naver)" d="M${bx},${y(0)} V${yt + r} Q${bx},${yt} ${bx + r},${yt} H${bx + bw - r} Q${bx + bw},${yt} ${bx + bw},${yt + r} V${y(0)} Z"/>`;
+    if (i % every === 0) svg += `<text x="${bx + bw / 2}" y="${H - 6}" class="dc-xtick">${x.date.slice(5).replace('-', '/')}</text>`;
+    svg += `<rect x="${L + cw * i}" y="${T}" width="${cw}" height="${H - T - B}" fill="transparent" class="dc-hit" data-i="${i}"/>`;
+  });
+  box.innerHTML = svg + '</svg><div class="dc-tip" id="ads-tip"></div>';
+  const tip = document.getElementById('ads-tip');
+  box.querySelectorAll('.dc-hit').forEach(el => {
+    const x = days[Number(el.dataset.i)];
+    const show = e => {
+      tip.innerHTML = `<b>${x.date}</b><div>광고비<span>${won(Math.round(x.cost))}원</span></div><div>클릭<span>${won(x.clk)}</span></div><div>전환매출<span>${won(Math.round(x.conv_amt))}원</span></div><div>ROAS<span>${roasTxt(x.roas)}</span></div>`;
+      tip.style.display = 'block';
+      const rect = box.getBoundingClientRect(), px = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      tip.style.left = Math.min(Math.max(px - tip.offsetWidth / 2, 0), rect.width - tip.offsetWidth) + 'px'; tip.style.top = '0px';
+    };
+    el.addEventListener('mousemove', show); el.addEventListener('touchstart', show, { passive: true });
+    el.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  });
+}
+
+// 광고 데이터 가져오기: 처음엔 최근 90일, 이후엔 최근 7일. 서버가 시간 안에 다 못 하면 next로 이어서
+let adsSyncing = false;
+async function runAdsSync() {
+  if (adsSyncing) return;
+  const btn = document.getElementById('ads-sync-btn');
+  adsSyncing = true;
+  let from = DATA.ads?.has_data ? kstDateStr(-6) : kstDateStr(-89), total = 0, rounds = 0, last = null;
+  try {
+    while (from && rounds < 20) {
+      btn.textContent = `가져오는 중… ${from}`;
+      const res = await apiFetch('/data?action=ads_sync', { method: 'POST', body: JSON.stringify({ from }) });
+      const r = await res.json().catch(() => ({}));
+      if (res.status === 401) { alert('로그인이 만료되었습니다. 다시 로그인하세요.'); doLogout(); return; }
+      if (!res.ok) throw new Error(r.error || res.status);
+      if (r.skipped) throw new Error('Vercel에 네이버 광고 키가 없어요 (NAVER_AD_CUSTOMER_ID / NAVER_AD_ACCESS_KEY / NAVER_AD_SECRET_KEY)');
+      total += r.synced || 0; rounds++; last = r;
+      if (r.error) throw new Error(r.error);
+      from = r.next;
+    }
+    alert(`네이버 광고 데이터 가져오기 완료\n저장 ${won(total)}행`);
+  } catch (e) {
+    alert('광고 데이터 가져오기 실패: ' + e.message);
+  } finally {
+    adsSyncing = false;
+    btn.textContent = '광고 데이터 가져오기';
+    loadAds();
+  }
+}
+function kstDateStr(offset = 0) { return new Date(Date.now() + 9 * 3600e3 + offset * 86400e3).toISOString().slice(0, 10); }
+
 // 화면 폭이 바뀌면 그래프를 다시 그림
 let dashResizeT = null;
-window.addEventListener('resize', () => { clearTimeout(dashResizeT); dashResizeT = setTimeout(() => { if (DATA.dash && !DATA.dash._error && document.getElementById('page-dash').classList.contains('active')) renderDashChart(DATA.dash); }, 150); });
+window.addEventListener('resize', () => { clearTimeout(dashResizeT); dashResizeT = setTimeout(() => { if (DATA.dash && !DATA.dash._error && document.getElementById('page-dash').classList.contains('active')) renderDashChart(DATA.dash); if (DATA.ads && !DATA.ads._error && DATA.ads.has_data && document.getElementById('page-dash').classList.contains('active')) renderAdsChart(DATA.ads); }, 150); });
 
 // ══════════ 쿠팡 로켓(서플라이어허브) 발주 ══════════
 // 엑셀(.xlsx)은 zip 파일 → 브라우저 기본 기능(DecompressionStream)으로 풀어서 첫 시트의 셀을 읽는다 (외부 라이브러리 없음)

@@ -17,6 +17,19 @@ function check(error) {
   if (error) throw new Error(error.message);
 }
 
+// Supabase(PostgREST)는 한 번에 최대 1,000행만 돌려준다 → 1,000행씩 끝까지 읽는다.
+// build는 매번 새 쿼리를 만드는 함수여야 하고, 순서가 고정되도록 .order()를 붙여서 넘길 것
+async function fetchAll(build, pageSize = 1000) {
+  const out = [];
+  for (let from = 0; from < 500000; from += pageSize) {
+    const { data, error } = await build().range(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+    out.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  return { data: out, error: null };
+}
+
 // ── 쇼핑몰: 오늘 현황 + 기간 내 주문(스토어별 집계용) + 발송 대기 ──
 // days: 주문일 기준 최근 며칠 (1=오늘, 기본 7, 최대 90)
 async function getShop({ days } = {}) {
@@ -385,15 +398,9 @@ async function getDashboard({ year } = {}) {
   const thisYear = Number(kstDate().slice(0, 4));
   const selYear = Number(year) || thisYear;
   const [shop, oem, rocket, qna] = await Promise.all([
-    supabase.from('orders')
-      .select('order_dt, total_amount, status, channels ( code )')
-      .limit(50000),
-    supabase.from('oem_orders')
-      .select('order_dt, total_amount, vat_amount, status')
-      .limit(20000),
-    supabase.from('rocket_pos')
-      .select('expected_dt, order_amount, received_amount, status')
-      .limit(20000),
+    fetchAll(() => supabase.from('orders').select('order_dt, total_amount, status, channels ( code )').order('id')),
+    fetchAll(() => supabase.from('oem_orders').select('order_dt, total_amount, vat_amount, status').order('id')),
+    fetchAll(() => supabase.from('rocket_pos').select('expected_dt, order_amount, received_amount, status').order('id')),
     supabase.from('product_qnas').select('id', { count: 'exact', head: true }).is('answer_content', null)
   ]);
   [shop, oem, rocket].forEach(r => check(r.error));
@@ -464,11 +471,11 @@ async function getAds({ days } = {}) {
   const since = kstDate(-(nDays - 1)), today = kstDate();
   const [camps, units, stats, meta, orders] = await Promise.all([
     supabase.from('ad_campaigns').select('id, name, campaign_tp, status, daily_budget'),
-    supabase.from('ad_units').select('id, unit_type, name, campaign_id, bid_amt, status').neq('unit_type', 'adgroup').limit(20000),
-    supabase.from('ad_stats_daily').select('stat_date, entity_type, entity_id, campaign_id, imp_cnt, clk_cnt, cost, conv_cnt, conv_amt, avg_rnk')
-      .gte('stat_date', since).lte('stat_date', today).limit(100000),
+    fetchAll(() => supabase.from('ad_units').select('id, unit_type, name, campaign_id, adgroup_id, bid_amt, status').order('id')),
+    fetchAll(() => supabase.from('ad_stats_daily').select('stat_date, entity_type, entity_id, campaign_id, imp_cnt, clk_cnt, cost, conv_cnt, conv_amt, avg_rnk')
+      .gte('stat_date', since).lte('stat_date', today).order('stat_date').order('entity_type').order('entity_id')),
     supabase.from('ad_meta').select('key, value, updated_at'),
-    supabase.from('orders').select('total_amount, status, order_dt, channels!inner ( code )').eq('channels.code', 'naver').gte('order_dt', since).limit(20000)
+    fetchAll(() => supabase.from('orders').select('total_amount, status, order_dt, channels!inner ( code )').eq('channels.code', 'naver').gte('order_dt', since).order('id'))
   ]);
   [camps, units, stats, meta, orders].forEach(r => check(r.error));
 
@@ -492,7 +499,8 @@ async function getAds({ days } = {}) {
   for (const s of unitRows) addTo(byUnit[s.entity_id] ||= zero(), s);
   const unitList = Object.entries(byUnit).map(([id, t]) => {
     const u = unitInfo[id] || {}, c = campInfo[u.campaign_id] || {};
-    return { id, name: u.name || id, unit_type: u.unit_type, campaign: c.name || '-', type: AD_TYPE[c.campaign_tp] || c.campaign_tp || '-', bid_amt: u.bid_amt, ...rate(t) };
+    const g = unitInfo[u.adgroup_id];   // 같은 상품이 차종별 광고그룹 여러 곳에 있어서 그룹명을 같이 보여준다
+    return { id, name: u.name || id, group: g?.name || null, unit_type: u.unit_type, campaign: c.name || '-', type: AD_TYPE[c.campaign_tp] || c.campaign_tp || '-', bid_amt: u.bid_amt, ...rate(t) };
   });
   const spent = unitList.filter(u => u.cost > 0);
   const waste = spent.filter(u => u.conv === 0 && u.cost >= 5000).sort((a, b) => b.cost - a.cost).slice(0, 15);

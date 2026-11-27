@@ -339,6 +339,7 @@ div.oem-group-head { display: block; border-radius: 0; padding: 8px 14px; margin
 .ak.good .ak-v { color: #15803d; } .ak.bad .ak-v { color: var(--red); }
 .ad-tbl { min-width: 720px; font-size: 12px; } .ad-tbl td:nth-child(2) { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ad-diag-wrap { margin-top: 10px; display: grid; gap: 10px; }
+.ad-sub { font-size: 10px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; }
 .ad-diag { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
 .ad-diag-h { font-size: 13px; font-weight: 700; } .ad-diag-h span { font-size: 11px; color: var(--text3); font-weight: 500; }
 .ad-diag-d { font-size: 11px; color: var(--text2); margin: 2px 0 6px; } .ad-none { font-size: 11px; color: var(--text3); padding: 4px 0; }
@@ -1898,7 +1899,7 @@ function renderAds(d) {
   const tile = (l, v, s = '', tone = '') => `<div class="ak${tone ? ' ' + tone : ''}"><div class="ak-l">${l}</div><div class="ak-v">${v}</div>${s ? `<div class="ak-s">${s}</div>` : ''}</div>`;
   const row = r => `<tr><td>${esc(r.type || '')}</td><td title="${esc(r.name || '')}">${esc(r.name || r.type)}</td><td class="num">${won(Math.round(r.cost))}</td><td class="num">${won(r.clk)}</td><td class="num">${pct(r.ctr)}</td><td class="num">${won(Math.round(r.cpc))}</td><td class="num">${(+r.conv).toFixed(0)}</td><td class="num">${won(Math.round(r.conv_amt))}</td><td class="num"><b>${roasTxt(r.roas)}</b></td></tr>`;
   const head = first => `<thead><tr><th>${first}</th><th>이름</th><th class="num">광고비</th><th class="num">클릭</th><th class="num">클릭률</th><th class="num">클릭당</th><th class="num">전환</th><th class="num">전환매출</th><th class="num">ROAS</th></tr></thead>`;
-  const unitRow = u => `<tr><td>${esc(u.type)}</td><td title="${esc(u.campaign)}">${esc(u.name)}</td><td class="num">${won(Math.round(u.cost))}</td><td class="num">${won(u.clk)}</td><td class="num">${pct(u.ctr)}</td><td class="num">${won(Math.round(u.cpc))}</td><td class="num">${(+u.conv).toFixed(0)}</td><td class="num">${won(Math.round(u.conv_amt))}</td><td class="num">${roasTxt(u.roas)}</td></tr>`;
+  const unitRow = u => `<tr><td>${esc(u.type)}</td><td title="${esc(u.name)} — ${esc(u.campaign)}">${esc(u.name)}<div class="ad-sub">${esc(u.group || u.campaign)}${u.bid_amt ? ` · 입찰 ${won(u.bid_amt)}원` : ""}</div></td><td class="num">${won(Math.round(u.cost))}</td><td class="num">${won(u.clk)}</td><td class="num">${pct(u.ctr)}</td><td class="num">${won(Math.round(u.cpc))}</td><td class="num">${(+u.conv).toFixed(0)}</td><td class="num">${won(Math.round(u.conv_amt))}</td><td class="num">${roasTxt(u.roas)}</td></tr>`;
   const dg = d.diagnosis || {};
   const diag = (title, desc, list) => `<div class="ad-diag"><div class="ad-diag-h">${title} <span>${list.length}개</span></div><div class="ad-diag-d">${desc}</div>` +
     (list.length ? `<div class="dash-ywrap"><table class="tbl sum-tbl ad-tbl">${head('종류')}<tbody>${list.map(unitRow).join('')}</tbody></table></div>` : `<div class="ad-none">해당 없음</div>`) + '</div>';

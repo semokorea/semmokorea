@@ -127,11 +127,13 @@ async function statsForDay(entities, day) {
       const batch = ids.slice(i, i + 50);
       let data;
       try {
-        data = await call('get', '/stats', { ids: batch, fields: convAmtSupported ? FIELDS : FIELDS.filter(f => f !== 'convAmt'), timeRange: { since: day, until: day } });
+        // fields는 JSON 배열 문자열로 보내야 함 (공식 예제: '["clkCnt","impCnt",...]'). ids는 같은 이름 반복
+        const fields = JSON.stringify(convAmtSupported ? FIELDS : FIELDS.filter(f => f !== 'convAmt'));
+        data = await call('get', '/stats', { ids: batch, fields, timeRange: { since: day, until: day } });
       } catch (e) {
         // 전환매출(convAmt) 필드를 받지 않는 계정이면 빼고 다시 (필드 관련 오류일 때만)
         const msg = JSON.stringify(e.response?.data || '');
-        if (convAmtSupported && e.response?.status === 400 && /field|convAmt|필드/i.test(msg)) { convAmtSupported = false; i -= 50; continue; }
+        if (convAmtSupported && e.response?.status === 400 && /convAmt/i.test(msg)) { convAmtSupported = false; i -= 50; continue; }
         throw e;
       }
       out.push(...(data?.data || []));

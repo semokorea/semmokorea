@@ -1934,9 +1934,9 @@ function renderAds(d) {
     `<div class="dash-ywrap pc-only"><table class="tbl sum-tbl ad-tbl">${head('유형')}<tbody>${(d.campaigns || []).map(row).join('') || `<tr><td colspan="9">${emptyMsg('기간 내 성과 없음')}</td></tr>`}</tbody></table></div>` +
     `<div class="mob-only">${(d.campaigns || []).map(c => card(c, c.name, c.daily_budget ? `하루 예산 ${won(c.daily_budget)}원` : '')).join('') || emptyMsg('기간 내 성과 없음')}</div>` +
     `<div class="ad-diag-wrap">` +
-      diag('⚠️ 돈만 쓰고 전환 없음', `광고비 5,000원 이상 썼는데 구매가 0건인 키워드·상품 — 입찰가를 낮추거나 끄는 걸 검토하세요`, dg.waste || []) +
-      diag('👀 클릭률 낮음', `노출 1,000회 이상인데 클릭률 0.3% 미만 — 키워드가 상품과 안 맞거나 소재(제목·이미지)를 바꿔볼 만해요`, dg.low_ctr || []) +
       diag('👍 효율 좋음', `전환이 있고 ROAS가 높은 순 — 예산·입찰을 늘려볼 후보예요`, dg.best || []) +
+      diag('👀 클릭률 낮음', `노출 1,000회 이상인데 클릭률 0.3% 미만 — 키워드가 상품과 안 맞거나 소재(제목·이미지)를 바꿔볼 만해요`, dg.low_ctr || []) +
+      diag('⚠️ 돈만 쓰고 전환 없음', `광고비 5,000원 이상 썼는데 구매가 0건인 키워드·상품 — 입찰가를 낮추거나 끄는 걸 검토하세요`, dg.waste || []) +
     `</div>`;
   renderAdsChart(d);
 }

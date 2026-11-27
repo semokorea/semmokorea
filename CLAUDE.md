@@ -46,6 +46,13 @@
 7. 보안: 모든 테이블 RLS 꺼져 있음(서버가 service key로만 접근, 프론트는 Supabase 직접 호출 안 함). Vercel의 `SUPABASE_SERVICE_KEY`가 실제 service_role 키인지 확인 권장
 8. 기존 `backend/api/`(Express, 배포 안 됨) 정리
 
+### ▶ 다음 작업: 네이버 쇼핑 광고(검색광고) 연동 (2026-11-27 예정)
+- 목표: 대시보드의 TOP5 자리(삭제함)에 광고 성과를 보여주고, 광고비 대비 매출(ROAS)·낭비 키워드 등 운영에 도움 되는 것을 함께 검토
+- 대표님 준비: searchad.naver.com 로그인 → 도구 → **API 사용 관리** → 네이버 검색광고 API 서비스 신청 → **CUSTOMER_ID · 액세스라이선스 · 비밀키** 확인 → Vercel 환경변수(값은 채팅 금지, 이름 예: NAVER_AD_CUSTOMER_ID / NAVER_AD_ACCESS_KEY / NAVER_AD_SECRET_KEY)
+- 개발: 공식 문서(naver.github.io/searchad-apidoc) 기준으로 서명(HMAC-SHA256, timestamp.method.uri), 캠페인·광고그룹·키워드 목록, 일별 성과(노출·클릭·비용·전환) 조회 확인. 호출 IP 제한 여부 확인(필요하면 중계 서버 101.79.26.42 + Squid ALLOWED_DOMAINS에 api.searchad.naver.com 추가)
+- 검토할 것: 일별 광고비/클릭/전환, 네이버 매출과 겹쳐 본 ROAS, 비용만 쓰고 전환 없는 키워드, 예산 소진 알림 등 — 서버 함수 12개 제한 때문에 새 API는 기존 파일(api/data 등)에 action으로 붙일 것
+- 참고: 자동 수집은 매일 08·12·18시(KST) Vercel Cron — 내일 아침 첫 실행 기록(sync_logs) 확인
+
 ### ▶ 쇼핑몰 연동 현황 (2026-11-26)
 **공통 방식**: ① 공식 문서 확보 ② `sync/<채널>.js`를 공식 규격으로 작성 ③ 요청은 `utils/proxy.js`(PROXY_URL)로 ④ Squid `ALLOWED_DOMAINS`에 API 도메인 추가 ⑤ 수집 채널 켜기 ⑥ 1일 수집 → DB 필드 확인. 스토어별 집계표·배송처리는 채널만 들어오면 자동으로 채워짐
 
